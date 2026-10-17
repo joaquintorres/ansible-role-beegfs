@@ -49,7 +49,8 @@ done
 # --- beegfs-kmod ------------------------------------------------------------
 git clone -q https://gitlab.com/ccad/beegfs-kmod.git "$WORK/beegfs-kmod"
 KMOD_SHA=$(git -C "$WORK/beegfs-kmod" rev-parse HEAD)
-echo "beegfs-kmod commit $KMOD_SHA" | annotate notice "beegfs-kmod"
+git -C "$WORK/beegfs-kmod" apply "$GITHUB_WORKSPACE"/files/beegfs-kmod/*.patch
+echo "beegfs-kmod commit $KMOD_SHA + $(ls "$GITHUB_WORKSPACE"/files/beegfs-kmod/)" | annotate notice "beegfs-kmod"
 summary "### EL$EL / BeeGFS $BEEGFS_VERSION"
 summary "- kernel-devel: \`$KVERSION\`, beegfs-kmod: \`$KMOD_SHA\`"
 
@@ -65,12 +66,13 @@ if ! rpmbuild --rebuild --define "kversion $KVERSION" "$SRPM" > "$OUT/rpmbuild.l
   summary "- rpmbuild: **failed**"
   exit 1
 fi
-{ grep -i -E 'rdma|ibverbs|ofed|warning:' "$OUT/rpmbuild.log" || true; } | sort -u | head -40 | annotate notice "rpmbuild RDMA/warnings"
+{ grep -i -E 'rdma|ibverbs|ofed|warning:' "$OUT/rpmbuild.log" || true; } | cut -c1-300 | sort -u | sed -n '1,40p' | annotate notice "rpmbuild RDMA/warnings"
 
 KMOD_RPM=$(ls ~/rpmbuild/RPMS/*/kmod-beegfs-*.rpm)
 cp "$KMOD_RPM" "$OUT/"
 summary "- built: \`$(basename "$KMOD_RPM")\`"
-rpm -qlp "$KMOD_RPM" | tee "$OUT/kmod.files" | annotate notice "kmod-beegfs files"
+rpm -qlp "$KMOD_RPM" > "$OUT/kmod.files"
+rpm -qlvp "$KMOD_RPM" | annotate notice "kmod-beegfs files"
 { echo "Provides:"; rpm -qp --provides "$KMOD_RPM"; echo "Requires:"; rpm -qp --requires "$KMOD_RPM"
   echo "Conflicts:"; rpm -qp --conflicts "$KMOD_RPM"; } | annotate notice "kmod-beegfs deps"
 
@@ -88,7 +90,9 @@ fi
 TOOLS=beegfs-utils
 [ "${BEEGFS_VERSION%%.*}" -ge 8 ] && TOOLS="$TOOLS beegfs-tools"
 if dnf -y install "$KMOD_RPM" $TOOLS > "$OUT/install.log" 2>&1; then
-  { rpm -q kmod-beegfs $TOOLS; ls -l /lib/modules/*/extra/beegfs/ /lib/modules/*/weak-updates/beegfs/ 2>&1; } \
+  { rpm -q kmod-beegfs $TOOLS; ls -l /lib/modules/*/extra/beegfs/ /lib/modules/*/weak-updates/beegfs/ 2>&1
+    ls -l /usr/lib/systemd/system/beegfs-client*.service /opt/beegfs/sbin/beegfs-client /etc/init.d/beegfs-client 2>&1
+    grep "^buildEnabled" /etc/beegfs/beegfs-client-autobuild.conf; } \
     | annotate notice "install ok"
   summary "- install with $TOOLS: ok"
 else

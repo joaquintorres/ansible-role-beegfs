@@ -9,6 +9,7 @@ name: kmod spike
   push:
     paths:
       - .github/kmod-spike/**
+      - files/beegfs-kmod/**
       - .github/workflows/kmod-spike.yml
 
 jobs:

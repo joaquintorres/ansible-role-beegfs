@@ -1,0 +1,45 @@
+From: joaquintorres <joaquintorres@integra.cnea.gob.ar>
+Subject: [PATCH] Support BeeGFS 7.4/8.x client layout and ship client runtime
+
+BeeGFS 8 moved the module sources to client_module_8. kmod-beegfs conflicts
+with beegfs-client, so also ship the client service, scripts and configs
+(with autobuild disabled), keeping their file modes.
+---
+--- a/beegfs-kmod.spec.tmpl
++++ b/beegfs-kmod.spec.tmpl
+@@ -60,15 +60,22 @@
+ echo "override %{kmod_name} * weak-updates/%{kmod_name}" > kmod-%{kmod_name}.conf
+ 
+ %build
+-%{__make} -C opt/beegfs/src/client/client_module_7/build %{?_smp_mflags} KDIR=%{kernel_source} V=1 M=$PWD %{build_extra_options}
++%{__make} -C opt/beegfs/src/client/client_module_*/build %{?_smp_mflags} KDIR=%{kernel_source} V=1 M=$PWD %{build_extra_options}
+ 
+ %install
+-%{__install} -D -m 0644 opt/beegfs/src/client/client_module_7/build/%{kmod_name}.ko %{buildroot}/lib/modules/%{kversion}.%{_arch}/extra/%{kmod_name}/%{kmod_name}.ko
++%{__install} -D -m 0644 opt/beegfs/src/client/client_module_*/build/%{kmod_name}.ko %{buildroot}/lib/modules/%{kversion}.%{_arch}/extra/%{kmod_name}/%{kmod_name}.ko
+ 
+ %{__install} -d %{buildroot}%{_sysconfdir}/depmod.d/
+ %{__install} -m 0644 kmod-%{kmod_name}.conf %{buildroot}%{_sysconfdir}/depmod.d/
+ %{__install} -D -m 0644 etc/beegfs/beegfs-client.conf %{buildroot}%{_sysconfdir}/beegfs/beegfs-client.conf
+ 
++# Client runtime (service, scripts, configs) from beegfs-client, minus the
++# module sources. Autobuild is disabled since the module is prebuilt.
++cp -a etc usr opt %{buildroot}/
++rm -rf %{buildroot}/opt/beegfs/src
++sed -i 's/^buildEnabled=.*/buildEnabled=false/' %{buildroot}%{_sysconfdir}/beegfs/beegfs-client-autobuild.conf
++(cd %{buildroot} && find etc usr opt \( -type f -o -type l \) ! -path 'etc/beegfs/*' ! -path 'etc/depmod.d/*' | sed 's|^|/|') > runtime.files
++
+ %post
+ modules=( $(find /lib/modules/%{kversion}.%{_arch}/extra/%{kmod_name} | grep '\.ko$') )
+ printf '%s\n' "${modules[@]}" | %{_sbindir}/weak-modules --add-modules --no-initramfs
+@@ -85,8 +92,8 @@
+ rmdir "%{dup_state_dir}" 2> /dev/null
+ exit 0
+ 
+-%files
+-%defattr(644,root,root,755)
++%files -f runtime.files
++%defattr(-,root,root,-)
+ /lib/modules/%{kversion}.%{_arch}/
+ %config /etc/depmod.d/kmod-%{kmod_name}.conf
+ %config /etc/beegfs
