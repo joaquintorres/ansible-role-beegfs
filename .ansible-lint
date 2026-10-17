@@ -1,0 +1,7 @@
+---
+profile: min
+
+# Minimal-edit policy: no FQCN or naming sweep (see .claude/plan.md).
+skip_list:
+  - fqcn
+  - name[casing]

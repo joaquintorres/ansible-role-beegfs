@@ -1,4 +1,8 @@
+---
 extends: default
+
+ignore: |
+  .ansible/
 
 rules:
   braces:
@@ -8,5 +12,13 @@ rules:
     max-spaces-inside: 1
     level: error
   line-length: disable
+  indentation:
+    indent-sequences: whatever
+  # Required by ansible-lint
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
   # truthy: disable
-  # comments-indentation: disable

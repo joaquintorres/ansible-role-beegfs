@@ -1,4 +1,9 @@
 ---
+- name: Ensure each OSS defines a dev or a path
+  assert:
+    that: oss_item.dev is defined or oss_item.path is defined
+    fail_msg: "beegfs_oss entries need a dev or a path: {{ oss_item }}"
+
 - name: Install packages for BeeGFS object storage server
   package:
     name: beegfs-storage

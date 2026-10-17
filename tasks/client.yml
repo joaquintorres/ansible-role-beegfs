@@ -54,7 +54,7 @@
   template:
     src: beegfs-mounts.conf.j2
     dest: /etc/beegfs/beegfs-mounts.conf
-    mode: 0644
+    mode: "0644"
   become: true
   notify: Restart BeeGFS client service
 

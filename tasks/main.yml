@@ -1,9 +1,16 @@
 ---
+- name: Ensure the platform is supported
+  assert:
+    that:
+      - ansible_os_family == "RedHat"
+      - ansible_distribution_major_version in ["8", "9", "10"]
+    fail_msg: "This role supports EL 8, 9 and 10 only, not {{ ansible_distribution }} {{ ansible_distribution_version }}."
+
 - name: If beegfs_state is present
-  include: create.yml
+  include_tasks: create.yml
   when: beegfs_state | lower == "present"
 
 - name: If beegfs_state is absent
-  include: destroy.yml
+  include_tasks: destroy.yml
   when: beegfs_state | lower == "absent"
 ...

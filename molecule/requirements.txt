@@ -1,2 +1,6 @@
-molecule
-python-vagrant
+ansible-core>=2.15
+ansible-lint
+molecule>=6
+molecule-plugins[vagrant]
+pytest-testinfra
+yamllint

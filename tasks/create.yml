@@ -1,47 +1,48 @@
 ---
+- name: Refuse to upgrade BeeGFS across major versions
+  block:
+    - name: Probe installed packages
+      package_facts:
+    - name: Ensure installed BeeGFS packages match beegfs_major_version
+      vars:
+        installed_majors: "{{ ansible_facts.packages | dict2items
+                              | selectattr('key', 'match', '^(beegfs-|kmod-beegfs)')
+                              | map(attribute='value') | flatten
+                              | map(attribute='version') | map('regex_replace', '\\..*$', '')
+                              | unique }}"
+      assert:
+        that: installed_majors | difference([beegfs_major_version]) | length == 0
+        fail_msg: >-
+          Installed BeeGFS major version(s) {{ installed_majors }} differ from
+          beegfs_version {{ beegfs_version }}. Upgrade across major versions
+          manually following the upstream upgrade guide.
+  when: beegfs_update | bool
+
 - name: Add BeeGFS repos is beegfs_add_repos is true
   block:
+
+  - name: Remove the old unversioned BeeGFS repo file
+    file:
+      path: /etc/yum.repos.d/beegfs-rhel7.repo
+      state: absent
+    become: true
 
   - name: Ensure the BeeGFS package repo is defined
     get_url:
       url: "{{ beegfs_repo_url }}"
       dest: "{{ beegfs_repo_file }}"
+      force: true  # pick up beegfs_version changes
     become: true
 
   - name: Load package repo key
-    block:
-      - name: add apt key for debian family machines
-        apt_key:
-          state: present
-          url: "{{ beegfs_repo_key }}"
-        when: ansible_os_family == "Debian"
-      - name: add rpm key for redhat family machines
-        rpm_key:
-          state: present
-          key: "{{ beegfs_repo_key }}"
-        when: ansible_os_family == "RedHat"
-    become: true
-
-  - name: Refresh apt repos and install https repo support for Debian
-    apt:
-      name:
-        - base-files
-        - apt-transport-https
+    rpm_key:
       state: present
-      update_cache: true
+      key: "{{ beegfs_repo_key }}"
     become: true
-    when: ansible_os_family == "Debian"
 
   when: beegfs_add_repos | bool
 
 # Task flow inspired by MichaelRigart.interfaces role - thanks markgoddard
-# Some systems do not support /etc/modules-load.d, in which case we fall back
-# to /etc/modules.
-- name: Check whether /etc/modules-load.d exists
-  stat:
-    path: /etc/modules-load.d
-  register: modules_load_stat
-
 - name: Ensure any required kernel modules are loaded
   modprobe:
     name: "{{ item }}"
@@ -55,15 +56,6 @@
     line: "{{ item }}"
     create: true
   become: true
-  when: modules_load_stat.stat.exists
-  with_items: "{{ beegfs_kmod_preload }}"
-
-- name: Make sure required modules are loaded at boot via /etc/modules
-  lineinfile:
-    dest: /etc/modules
-    line: "{{ item }}"
-  become: true
-  when: not modules_load_stat.stat.exists
   with_items: "{{ beegfs_kmod_preload }}"
 
 - name: Stop and delete server and client service
@@ -111,19 +103,19 @@
         (beegfs_package_action | lower == "latest")
   become: true
 
-- include: rdma.yml
+- include_tasks: rdma.yml
   when: beegfs_rdma | bool
 
-- include: mgmt.yml
+- include_tasks: mgmt.yml
   when: beegfs_enable.mgmt | default(false) | bool
 
-- include: admon.yml
+- include_tasks: admon.yml
   when: beegfs_enable.admon | default(false) | bool
 
-- include: meta.yml
+- include_tasks: meta.yml
   when: beegfs_enable.meta | default(false) | bool
 
-- include: oss.yml
+- include_tasks: oss.yml
   vars:
     oss_dev: "{{ oss_item.dev | default('') }}"
     oss_dev_is_defined: "{{ oss_item.dev is defined }}"
@@ -133,16 +125,14 @@
   with_items: "{{ beegfs_oss }}"
   loop_control:
     loop_var: oss_item
-  failed_when: >
-    (oss_item.dev is not defined and oss_item.path is not defined)
   when: beegfs_enable.oss | default(false) | bool
 
-- include: tuning.yml
+- include_tasks: tuning.yml
   when: beegfs_enable.tuning | default(false) | bool
 
 - meta: flush_handlers
 
-- include: client.yml
+- include_tasks: client.yml
   vars:
     client_mgmt_host: "{{ client_item.mgmt_host | default(beegfs_mgmt_host) }}"
     client_path: "{{ client_item.path }}"
