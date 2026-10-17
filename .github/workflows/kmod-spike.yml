@@ -1,0 +1,37 @@
+---
+# T05 spike (see .claude/tasks/T05-kmod-spike.md): build kmod-beegfs with
+# ccad/beegfs-kmod for each EL / BeeGFS combination. Containers suffice since
+# building a module only needs kernel-devel, not a booted kernel.
+name: kmod spike
+
+"on":
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/kmod-spike/**
+      - .github/workflows/kmod-spike.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: almalinux:${{ matrix.el }}
+    strategy:
+      fail-fast: false
+      matrix:
+        el: ["8", "9", "10"]
+        beegfs: ["7.4.6", "8.4"]
+        exclude:
+          - el: "10"
+            beegfs: "7.4.6"
+        include:
+          - el: "10"
+            beegfs: "7.4.7"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and inspect kmod-beegfs
+        run: bash .github/kmod-spike/spike.sh ${{ matrix.beegfs }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kmod-el${{ matrix.el }}-beegfs${{ matrix.beegfs }}
+          path: spike-out/
