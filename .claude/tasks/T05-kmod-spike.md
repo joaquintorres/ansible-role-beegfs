@@ -77,7 +77,23 @@ Answers so far:
    Overriding to forking is likely wrong now → drop `Type=` from the
    override in T06 (keep `Restart=`; note `Restart=on-failure` with oneshot
    needs systemd ≥ 244 — fine on EL8+).
-2, 6, 7: pending run 2.
+2, 6, 7: pending run 3.
 
 Patch: `files/beegfs-kmod/0001-client-layout-and-runtime.patch`, applied by
 spike.sh (and later by T12's build playbook).
+
+## Findings — run 2 (39134160698, commit 3930051, patch v1)
+
+- ✅ **rpmbuild succeeds on all six** (EL8/9 × 7.4.6, EL10 × 7.4.7,
+  EL8/9/10 × 8.4) with the patch.
+- ✅ 7.x: patched kmod-beegfs contains every non-source beegfs-client file.
+- ⚠️ 8.4: `/sbin/mount.beegfs` missing (patch only copied `etc usr opt`) →
+  patch v2 also copies `sbin` when present (guarded for `sh -e` on 7.x).
+- `dnf install kmod-beegfs beegfs-utils [beegfs-tools]` then ran; the job
+  died afterwards (exit 2) on an `ls` of the other major's client script
+  under `set -e` — spike bug, fixed. The install itself got past, so
+  `Provides: beegfs-client` very likely satisfies beegfs-utils/tools (7) —
+  confirm in run 3.
+- weak-modules (6) result was dropped: GitHub keeps 10 notices per step.
+  spike.sh now writes one consolidated "report" notice on exit.
+- Spike also prints `modinfo` vermagic/depends now, to answer (2) RDMA.
