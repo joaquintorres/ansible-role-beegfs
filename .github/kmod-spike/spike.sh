@@ -1,8 +1,9 @@
 #!/bin/bash
 # T05 spike: build kmod-beegfs with https://gitlab.com/ccad/beegfs-kmod inside an
-# EL container. Findings go to one "report" notice emitted on exit (GitHub keeps
-# only 10 notices per step; annotations are readable via the public check-runs
-# API) and to the job summary; failures are error annotations.
+# EL container. On exit, a short "key findings" notice plus the full report in
+# <4 KB chunks are emitted (the API truncates annotations at 4096 bytes and
+# keeps 10 notices per step; annotations are readable via the public
+# check-runs API). The report also goes to the job summary.
 # Usage: spike.sh <beegfs_version>   e.g. 8.4, 7.4.6
 set -euo pipefail
 
@@ -22,9 +23,16 @@ summary() { echo "$*" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"; }
 note() {  # note <title>  (body on stdin) -> appended to the report
   { echo "#### $1"; echo '```'; cat; echo '```'; } >> "$OUT/report.md"
 }
+key() { echo "$*" >> "$OUT/key.txt"; }
 emit_report() {
+  local i=0 f
+  [ -f "$OUT/key.txt" ] && head -c 3900 "$OUT/key.txt" | annotate notice "key findings"
   [ -f "$OUT/report.md" ] || return 0
-  head -c 60000 "$OUT/report.md" | annotate notice "report"
+  split -b 3900 -d "$OUT/report.md" "$OUT/report.part."
+  for f in "$OUT"/report.part.*; do
+    i=$((i + 1))
+    [ "$i" -le 8 ] && annotate notice "report $i" < "$f"
+  done
   cat "$OUT/report.md" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 }
 trap emit_report EXIT
@@ -76,7 +84,7 @@ if ! rpmbuild --rebuild --define "kversion $KVERSION" "$SRPM" > "$OUT/rpmbuild.l
   summary "- rpmbuild: **failed**"
   exit 1
 fi
-{ grep -i -E 'rdma|ibverbs|ofed|warning:' "$OUT/rpmbuild.log" || true; } | cut -c1-300 | sort -u | sed -n '1,40p' | note "rpmbuild RDMA/warnings"
+key "rpmbuild: ok, $(grep -c 'warning:' "$OUT/rpmbuild.log" || true) compiler warnings"
 
 KMOD_RPM=$(ls ~/rpmbuild/RPMS/*/kmod-beegfs-*.rpm)
 cp "$KMOD_RPM" "$OUT/"
@@ -89,17 +97,24 @@ rpm -qlvp "$KMOD_RPM" | note "kmod-beegfs files"
 # Files beegfs-client ships (minus sources/build) that kmod-beegfs lacks
 comm -23 <(grep -v -E '^/opt/beegfs/src(/|$)' "$OUT/beegfs-client.files" | sort) \
          <(sort "$OUT/kmod.files") > "$OUT/missing.files" || true
+key "missing vs beegfs-client: $(wc -l < "$OUT/missing.files") paths $(tr '\n' ' ' < "$OUT/missing.files")"
 if [ -s "$OUT/missing.files" ]; then
   annotate warning "in beegfs-client but not kmod-beegfs" < "$OUT/missing.files"
   summary "- missing vs beegfs-client: $(wc -l < "$OUT/missing.files") paths"
 fi
 
 # --- install test -----------------------------------------------------------
-{ command -v weak-modules || echo "weak-modules: not found"; rpm -qf "$(command -v weak-modules 2>/dev/null || echo /nonexistent)" 2>&1 || true; } \
-  | note "weak-modules"
+key "weak-modules before install: $(command -v weak-modules || echo none)"
 TOOLS=beegfs-utils
 [ "${BEEGFS_VERSION%%.*}" -ge 8 ] && TOOLS="$TOOLS beegfs-tools"
 if dnf -y install "$KMOD_RPM" $TOOLS > "$OUT/install.log" 2>&1; then
+  key "install ok: $(rpm -q kmod-beegfs $TOOLS | tr '\n' ' ')"
+  key "weak-modules after install: $(command -v weak-modules || echo none) ($(rpm -qf "$(command -v weak-modules || echo /none)" 2>&1 || true))"
+  key "pulled in: $(sed -n '/^Installing dependencies:/,/^Transaction Summary/p' "$OUT/install.log" | awk 'NF>=5 && $2 ~ /x86_64|noarch/ {print $1}' | tr '\n' ' ')"
+  key "client entry points: $(ls -d /usr/lib/systemd/system/beegfs-client*.service /opt/beegfs/sbin/beegfs-client /etc/init.d/beegfs-client /sbin/mount.beegfs 2>/dev/null | tr '\n' ' ')"
+  key "$(grep '^buildEnabled' /etc/beegfs/beegfs-client-autobuild.conf)"
+  key "modinfo vermagic: $(modinfo -F vermagic /lib/modules/*/extra/beegfs/beegfs.ko); depends: $(modinfo -F depends /lib/modules/*/extra/beegfs/beegfs.ko)"
+  key "weak-updates: $(ls /lib/modules/*/weak-updates/beegfs/ 2>/dev/null | tr '\n' ' ')"
   { rpm -q kmod-beegfs $TOOLS; ls -l /lib/modules/*/extra/beegfs/ /lib/modules/*/weak-updates/beegfs/ 2>&1 || true
     ls -l /usr/lib/systemd/system/beegfs-client*.service /opt/beegfs/sbin/beegfs-client /etc/init.d/beegfs-client /sbin/mount.beegfs 2>&1 || true
     grep "^buildEnabled" /etc/beegfs/beegfs-client-autobuild.conf
@@ -108,6 +123,7 @@ if dnf -y install "$KMOD_RPM" $TOOLS > "$OUT/install.log" 2>&1; then
     | note "install ok"
   summary "- install with $TOOLS: ok"
 else
+  key "install FAILED"
   tail -40 "$OUT/install.log" | annotate error "install failed"
   summary "- install with $TOOLS: **failed**"
   exit 1

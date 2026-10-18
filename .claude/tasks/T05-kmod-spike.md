@@ -97,3 +97,17 @@ spike.sh (and later by T12's build playbook).
 - weak-modules (6) result was dropped: GitHub keeps 10 notices per step.
   spike.sh now writes one consolidated "report" notice on exit.
 - Spike also prints `modinfo` vermagic/depends now, to answer (2) RDMA.
+
+## Findings — run 3 (39135588814, commit d19b9d4, patch v2) ✅ all green
+
+- ✅ All six combinations build **and** `dnf install kmod-beegfs beegfs-utils
+  [beegfs-tools]` succeeds → (7) `Provides: beegfs-client` satisfies the
+  tools' dependencies.
+- ✅ No "missing vs beegfs-client" warning on any job → the patched package
+  now carries every non-source client file, incl. `/sbin/mount.beegfs` (8.x).
+- ✅ `%post` ran without error, so `weak-modules` resolved on EL10 as well
+  (it's a `Requires(post)`); which package provides it is in run 4.
+- The API truncates annotation messages at 4096 bytes, so the report notice
+  lost the install/modinfo sections. spike.sh now emits a short
+  "key findings" notice first and the report in <4 KB chunks; the noisy
+  RDMA grep was replaced by `modinfo depends`.
