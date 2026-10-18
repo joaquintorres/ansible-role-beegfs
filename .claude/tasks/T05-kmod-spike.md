@@ -49,3 +49,35 @@ Findings are emitted as annotations (readable unauthenticated via
 the job summary; RPMs + logs are uploaded as artifacts.
 Not covered by CI: question 4/5 at runtime (service start, `Type=forking`)
 → verified in Molecule (T11/T12).
+
+## Findings — run 1 (39079553377, commit ee7d561, beegfs-kmod 614232a)
+
+Build kernels: EL8 `4.18.0-553.174.1.el8_10`, EL9 `5.14.0-687.57.1.el9_8`,
+EL10 `6.12.0-211.65.1.el10_2`.
+
+| | 7.4.6 / 7.4.7 (EL10) | 8.4 |
+|---|---|---|
+| Module sources | `/opt/beegfs/src/client/client_module_7` | `/opt/beegfs/src/client/client_module_8` |
+| rpmbuild | ✅ compiles on EL8, EL9, EL10 (job then died on a SIGPIPE in spike.sh, fixed) | ❌ spec hard-codes `client_module_7` |
+| Service | `Type=oneshot`, `ExecStart=/etc/init.d/beegfs-client start`, After `beegfs-helperd` | `Type=oneshot`, `ExecStart=/opt/beegfs/sbin/beegfs-client start` |
+| Autobuild conf | `buildArgs=-j8`, `buildEnabled=true` | same |
+| beegfs-client Requires | `gcc`, `make` (→ installing it drags in a toolchain) | |
+
+Answers so far:
+1. Paths noted above; spec needs `client_module_*` → patched.
+3. **kmod-beegfs ships only `beegfs.ko`, depmod.d conf and
+   `beegfs-client.conf`**, while conflicting with `beegfs-client`: no
+   service unit, no start script, no `beegfs-mounts.conf`. → patched to ship
+   all beegfs-client files except `/opt/beegfs/src`, keep modes, and set
+   `buildEnabled=false`.
+4. Both majors' start scripts honour `beegfs-client-autobuild.conf`; the
+   patch sets `buildEnabled=false` (runtime behaviour → verify in T11).
+5. **`files/beegfs-client.service.d/override.conf` sets `Type=forking`, but
+   upstream is `Type=oneshot` + `RemainAfterExit=yes` on 7.4 and 8.4.**
+   Overriding to forking is likely wrong now → drop `Type=` from the
+   override in T06 (keep `Restart=`; note `Restart=on-failure` with oneshot
+   needs systemd ≥ 244 — fine on EL8+).
+2, 6, 7: pending run 2.
+
+Patch: `files/beegfs-kmod/0001-client-layout-and-runtime.patch`, applied by
+spike.sh (and later by T12's build playbook).
