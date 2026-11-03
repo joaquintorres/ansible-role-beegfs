@@ -18,8 +18,9 @@ platform-python) and the apt bits.
 5. `build-srpm.sh`, then `rpmbuild --rebuild --define "kversion …"`
    (`ansible_kernel` minus `.{{ ansible_architecture }}`), `creates:` on the
    result.
-   Pass `build_extra_options` (default `""`) for RDMA/MOFED builds, using
-   the flags T05 run 4 found (R8).
+   Also `--define "beegfs_release <client release>.k<kversion, - → _>"`
+   (R7, as in `spike.sh`). Pass `build_extra_options` (default `""`) only
+   for MOFED; in-kernel RDMA is built by default (T05 run 4).
 6. `set_fact` the resulting RPM path; converge passes it as
    `beegfs_client_kmod_packages`.
 7. Remove build deps afterwards (`gcc`, `kernel-devel`) so the test proves the

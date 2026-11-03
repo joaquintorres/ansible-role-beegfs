@@ -195,3 +195,32 @@ change needed: the spec only sets it when undefined), `%config(noreplace)
   `depends: ib_core,rdma_cm`, `weak-updates/` empty. 8.4 also ships
   `beegfs-client@.service`.
 - `actions/upload-artifact@v5` triggers a Node 20 deprecation warning.
+
+## Findings — run 6 (41710528658, commit 592c252, patch v3 + depmod fix) ✅ done
+
+- ✅ **R4 / (6):** with `%post` running `depmod -a %{kversion}.%{_arch}`, no
+  `kmod-beegfs` scriptlet fails on any of the six jobs. Run 5's failures
+  were the bare `depmod -a` targeting the runner's kernel.
+- Remaining: `%posttrans(kernel-core)` fails on EL9/EL10 because dracut can't
+  write `/boot` in a container ("running in hostonly mode in a container").
+  Container-only, not our package; EL8's kernel-core doesn't run dracut here.
+- Everything else as in run 5 (release tag, `cn` flags, install, RDMA deps).
+
+## Outcome (2026-11-03)
+
+Done. Inputs for T12's build playbook:
+
+- beegfs-kmod commit `614232a` + `files/beegfs-kmod/0001-client-layout-and-runtime.patch`
+  (client_module_*, ships client runtime with `buildEnabled=false`,
+  `%config(noreplace) /etc/beegfs`, `depmod -a <kversion>`).
+- `rpmbuild --rebuild --define "kversion <ver-rel>" --define
+  "beegfs_release <client release>.k<ver-rel with - → _>"`.
+- Build deps: `rpm-build git perl make gcc elfutils-libelf-devel
+  kernel-rpm-macros redhat-rpm-config bzip2 cpio kernel-devel-<kver>`;
+  `kernel-rpm-macros` needs PowerTools (EL8) / CRB (EL9/10).
+- RDMA is built in by default (`depends: ib_core,rdma_cm`); MOFED via
+  `build_extra_options`.
+
+Inputs for T06: the client needs no compiler; neither `beegfs-utils` nor
+`beegfs-tools` requires `beegfs-client`; drop `Type=forking` from the
+override; the IB `buildArgs` task only applies to autobuild.
