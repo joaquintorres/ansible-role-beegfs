@@ -55,3 +55,14 @@ Done. Probed URLs (HTTP 200 unless noted):
 **Done when:** on a host with 7.x packages, the role fails before touching
 the repo file with the default `beegfs_version` (with and without
 `beegfs_update`), and passes with `beegfs_version: "7.4.6"`.
+
+### Outcome (2026-11-03)
+
+Done (+3/−3 lines). The guard now runs on every run, before the repo tasks,
+and its message says to pin `beegfs_version`; `beegfs_major_version` casts to
+string. Tested on ansible-core 2.19.14 with fake `package_facts` (the
+packages a real 7.x/8.x host would have):
+7.x + default 8.4 → fails; 7.x + `"7.4.6"` → passes; no packages → passes;
+8.x + unquoted `8.4` → passes; 7.x + unquoted `8.4` → fails. yamllint,
+syntax check pass; ansible-lint passes except the old Molecule playbooks
+(T11).

@@ -14,9 +14,9 @@
         that: installed_majors | difference([beegfs_major_version]) | length == 0
         fail_msg: >-
           Installed BeeGFS major version(s) {{ installed_majors }} differ from
-          beegfs_version {{ beegfs_version }}. Upgrade across major versions
+          beegfs_version {{ beegfs_version }}. Pin beegfs_version to the
+          installed release (e.g. "7.4.6"), or upgrade across major versions
           manually following the upstream upgrade guide.
-  when: beegfs_update | bool
 
 - name: Add BeeGFS repos is beegfs_add_repos is true
   block:

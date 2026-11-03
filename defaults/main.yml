@@ -21,7 +21,7 @@ beegfs_interfaces: []
 # BeeGFS release, as used in the repo path: "8.4" for 8.x, "7.4.6" for 7.x.
 # The role does not upgrade across major versions.
 beegfs_version: "8.4"
-beegfs_major_version: "{{ beegfs_version.split('.') | first }}"
+beegfs_major_version: "{{ (beegfs_version | string).split('.') | first }}"
 
 # Distribution-specific parameters
 beegfs_distro_vars:
