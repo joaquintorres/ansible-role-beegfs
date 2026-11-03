@@ -12,6 +12,9 @@ name: kmod spike
       - files/beegfs-kmod/**
       - .github/workflows/kmod-spike.yml
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

@@ -67,8 +67,8 @@ done
 # --- beegfs-kmod ------------------------------------------------------------
 git clone -q https://gitlab.com/ccad/beegfs-kmod.git "$WORK/beegfs-kmod"
 KMOD_SHA=$(git -C "$WORK/beegfs-kmod" rev-parse HEAD)
-git -C "$WORK/beegfs-kmod" apply "$GITHUB_WORKSPACE"/files/beegfs-kmod/*.patch
-echo "beegfs-kmod commit $KMOD_SHA + $(ls "$GITHUB_WORKSPACE"/files/beegfs-kmod/)" | note "beegfs-kmod"
+git -C "$WORK/beegfs-kmod" apply "${GITHUB_WORKSPACE:-$PWD}"/files/beegfs-kmod/*.patch
+echo "beegfs-kmod commit $KMOD_SHA + $(ls "${GITHUB_WORKSPACE:-$PWD}"/files/beegfs-kmod/)" | note "beegfs-kmod"
 summary "### EL$EL / BeeGFS $BEEGFS_VERSION"
 summary "- kernel-devel: \`$KVERSION\`, beegfs-kmod: \`$KMOD_SHA\`"
 
@@ -79,7 +79,8 @@ if ! ./build-srpm.sh "$CLIENT_RPM" > "$OUT/build-srpm.log" 2>&1; then
   exit 1
 fi
 SRPM=$(ls ~/rpmbuild/SRPMS/*.src.rpm)
-if ! rpmbuild --rebuild --define "kversion $KVERSION" "$SRPM" > "$OUT/rpmbuild.log" 2>&1; then
+RELEASE="$(rpm -qp --qf '%{RELEASE}' "$CLIENT_RPM").k${KVERSION//-/_}"  # one NEVR per kernel
+if ! rpmbuild --rebuild --define "kversion $KVERSION" --define "beegfs_release $RELEASE" "$SRPM" > "$OUT/rpmbuild.log" 2>&1; then
   tail -60 "$OUT/rpmbuild.log" | annotate error "rpmbuild failed"
   summary "- rpmbuild: **failed**"
   exit 1
@@ -90,6 +91,7 @@ KMOD_RPM=$(ls ~/rpmbuild/RPMS/*/kmod-beegfs-*.rpm)
 cp "$KMOD_RPM" "$OUT/"
 summary "- built: \`$(basename "$KMOD_RPM")\`"
 rpm -qlp "$KMOD_RPM" > "$OUT/kmod.files"
+key "release: $(rpm -qp --qf '%{RELEASE}' "$KMOD_RPM"); /etc/beegfs flags: $(rpm -qp --qf '[%{FILEFLAGS:fflags} %{FILENAMES}\n]' "$KMOD_RPM" | grep ' /etc/beegfs/' | tr '\n' ' ')"
 rpm -qlvp "$KMOD_RPM" | note "kmod-beegfs files"
 { echo "Provides:"; rpm -qp --provides "$KMOD_RPM"; echo "Requires:"; rpm -qp --requires "$KMOD_RPM"
   echo "Conflicts:"; rpm -qp --conflicts "$KMOD_RPM"; } | note "kmod-beegfs deps"
@@ -109,6 +111,8 @@ TOOLS=beegfs-utils
 [ "${BEEGFS_VERSION%%.*}" -ge 8 ] && TOOLS="$TOOLS beegfs-tools"
 if dnf -y install "$KMOD_RPM" $TOOLS > "$OUT/install.log" 2>&1; then
   key "install ok: $(rpm -q kmod-beegfs $TOOLS | tr '\n' ' ')"
+  key "scriptlet problems: $(grep -i -e 'scriptlet failed' -e 'error in .*scriptlet' "$OUT/install.log" | tr '\n' ' ')"
+  key "tools require beegfs-client: $(rpm -q --requires $TOOLS | grep beegfs-client | tr '\n' ' ')"
   key "weak-modules after install: $(command -v weak-modules || echo none) ($(rpm -qf "$(command -v weak-modules || echo /none)" 2>&1 || true))"
   key "pulled in: $(sed -n '/^Installing dependencies:/,/^Transaction Summary/p' "$OUT/install.log" | awk 'NF>=5 && $2 ~ /x86_64|noarch/ {print $1}' | tr '\n' ' ')"
   key "client entry points: $(ls -d /usr/lib/systemd/system/beegfs-client*.service /opt/beegfs/sbin/beegfs-client /etc/init.d/beegfs-client /sbin/mount.beegfs 2>/dev/null | tr '\n' ' ')"
