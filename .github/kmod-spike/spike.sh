@@ -112,6 +112,7 @@ TOOLS=beegfs-utils
 if dnf -y install "$KMOD_RPM" $TOOLS > "$OUT/install.log" 2>&1; then
   key "install ok: $(rpm -q kmod-beegfs $TOOLS | tr '\n' ' ')"
   key "scriptlet problems: $(grep -i -e 'scriptlet failed' -e 'error in .*scriptlet' "$OUT/install.log" | tr '\n' ' ')"
+  { grep -B8 'scriptlet failed' "$OUT/install.log" || echo none; } | note "scriptlet output"
   key "tools require beegfs-client: $(rpm -q --requires $TOOLS | grep beegfs-client | tr '\n' ' ')"
   key "weak-modules after install: $(command -v weak-modules || echo none) ($(rpm -qf "$(command -v weak-modules || echo /none)" 2>&1 || true))"
   key "pulled in: $(sed -n '/^Installing dependencies:/,/^Transaction Summary/p' "$OUT/install.log" | awk 'NF>=5 && $2 ~ /x86_64|noarch/ {print $1}' | tr '\n' ' ')"

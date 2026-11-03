@@ -8,7 +8,7 @@ with beegfs-client, so also ship the client service, scripts and configs
 ---
 --- a/beegfs-kmod.spec.tmpl
 +++ b/beegfs-kmod.spec.tmpl
-@@ -60,15 +60,23 @@
+@@ -60,17 +60,25 @@
  echo "override %{kmod_name} * weak-updates/%{kmod_name}" > kmod-%{kmod_name}.conf
  
  %build
@@ -34,6 +34,9 @@ with beegfs-client, so also ship the client service, scripts and configs
  %post
  modules=( $(find /lib/modules/%{kversion}.%{_arch}/extra/%{kmod_name} | grep '\.ko$') )
  printf '%s\n' "${modules[@]}" | %{_sbindir}/weak-modules --add-modules --no-initramfs
+-depmod -a
++depmod -a %{kversion}.%{_arch}
+ 
 @@ -85,9 +93,9 @@
  rmdir "%{dup_state_dir}" 2> /dev/null
  exit 0
