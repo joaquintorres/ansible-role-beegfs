@@ -144,3 +144,34 @@ Spike fixes:
 
 **Done when:** run 4 is green on all six jobs, the findings above are
 recorded here, and T05 is ticked in the index.
+
+## Findings — run 4 (39138841299, commit 36bb3a1, patch v2) ✅ all green
+
+Recorded 2026-11-03 from the "key findings" annotations.
+
+- ✅ Build + `dnf install kmod-beegfs beegfs-utils [beegfs-tools]` on all six
+  (8.4 resolves to 8.4.1). No files missing vs `beegfs-client`.
+- **(2) RDMA — answered (R8):** every build has `depends: ib_core,rdma_cm`,
+  so 7.4 and 8.4 build in-kernel RDMA by default with no `buildArgs`.
+  `BEEGFS_OPENTK_IBVERBS` isn't needed; MOFED still needs
+  `build_extra_options` (T12).
+- **(6) weak-modules:** `/usr/sbin/weak-modules` is in the `kmod` package on
+  EL8 (`kmod-25`), EL9 (`kmod-28`) and EL10 (`kmod-31`); not preinstalled in
+  the EL8 container, pulled in by `Requires(post)`. `weak-updates/beegfs/` is
+  empty, as expected with only the build kernel installed. `%post` success
+  still unproven (R4) → run 5.
+- Install pulls in `kernel-core` (+ firmware on EL9/10) through
+  `Requires: kernel >= kversion`; 7.x also pulls `beegfs-common` (from
+  `beegfs-utils`). `beegfs-client` itself isn't in the pulled-in list,
+  so (7) depends on R5 → run 5.
+- Entry points: 7.x `/etc/init.d/beegfs-client` + `beegfs-client{,@}.service`;
+  8.4 adds `/opt/beegfs/sbin/beegfs-client` and `/sbin/mount.beegfs`.
+  `buildEnabled=false` on all.
+- Compiler warnings: 0–2 per build (EL9/EL10); not investigated.
+
+## Run 5 (commit 7dc38bb, patch v3) — pending
+
+Changes: kernel tag in `Release` via `--define beegfs_release` (R7, no spec
+change needed: the spec only sets it when undefined), `%config(noreplace)
+/etc/beegfs` (R6), report scriptlet failures (R4) and what the tools require
+(R5), `GITHUB_WORKSPACE` fallback and `permissions: contents: read` (R9).
