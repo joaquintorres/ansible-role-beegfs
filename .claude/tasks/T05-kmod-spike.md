@@ -169,9 +169,29 @@ Recorded 2026-11-03 from the "key findings" annotations.
   `buildEnabled=false` on all.
 - Compiler warnings: 0–2 per build (EL9/EL10); not investigated.
 
-## Run 5 (commit 7dc38bb, patch v3) — pending
+## Findings — run 5 (41698009705, commit ff98727, patch v3) — green, but `%post` fails
 
 Changes: kernel tag in `Release` via `--define beegfs_release` (R7, no spec
 change needed: the spec only sets it when undefined), `%config(noreplace)
 /etc/beegfs` (R6), report scriptlet failures (R4) and what the tools require
 (R5), `GITHUB_WORKSPACE` fallback and `permissions: contents: read` (R9).
+
+- ✅ **R7:** release is e.g. `el9.k5.14.0_687.65.1.el9_8` →
+  `kmod-beegfs-8.4.1-el9.k5.14.0_687.65.1.el9_8.x86_64`.
+- ✅ **R6:** every file under `/etc/beegfs` is flagged `cn` (config, noreplace).
+- ✅ **R5 / (7):** neither `beegfs-utils` nor `beegfs-tools` requires
+  `beegfs-client` (7.4 or 8.4), so (7) is moot. `Provides: beegfs-client`
+  is harmless and stays.
+- ❌ **R4 / (6):** `%post(kmod-beegfs) scriptlet failed, exit status 1` on
+  **all six** jobs; `dnf` still exits 0. The run 3 conclusion was wrong.
+  `%posttrans(kernel-core)` also fails on EL9/EL10 (not EL8).
+  Likely cause (unconfirmed, error text not captured): in the container
+  `uname -r` is the runner's kernel, so the trailing `depmod -a` (which
+  targets the *running* kernel) fails. That is also a real bug on hosts:
+  installing a kmod for a newly installed, not-yet-booted kernel updates
+  the wrong `modules.dep`. Next: capture the scriptlet's stderr and change
+  `%post` to `depmod -a %{kversion}.%{_arch}`.
+- Unchanged from run 4: builds, no missing files, `buildEnabled=false`,
+  `depends: ib_core,rdma_cm`, `weak-updates/` empty. 8.4 also ships
+  `beegfs-client@.service`.
+- `actions/upload-artifact@v5` triggers a Node 20 deprecation warning.
