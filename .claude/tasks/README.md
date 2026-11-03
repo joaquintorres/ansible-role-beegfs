@@ -14,7 +14,7 @@ the user's explicit approval, asked for with a justification — see
 - [x] [T03](T03-version-and-repos.md) Pin BeeGFS version, versioned EL repos
 - [x] [T04](T04-xfs-mount-opts.md) Drop `nobarrier`
 - [x] [T05](T05-kmod-spike.md) Spike: beegfs-kmod against 7.4 / 8.x / EL8-10
-- [ ] [T06](T06-client-kmod.md) Client installs `kmod-beegfs`
+- [x] [T06](T06-client-kmod.md) Client installs `kmod-beegfs`
 - [ ] [T07](T07-conn-auth.md) Connection authentication
 - [ ] [T08](T08-helperd.md) Guard `beegfs-helperd` for 8.x
 - [ ] [T09](T09-mgmtd-v8.md) 8.x mgmtd, TLS, `beegfs-tools`

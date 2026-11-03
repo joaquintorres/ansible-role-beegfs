@@ -35,3 +35,12 @@ Scenario → version map in `plan.md`.
 
 **Done when:** `molecule test` and `molecule test -s vagrant-el8|vagrant-el10`
 pass, including idempotence.
+
+## Deferred from T06 (2026-11-03)
+
+- **Autobuild → kmod migration** in `vagrant-el8` (7.4.6) as a Molecule
+  `side_effect` playbook: converge with `beegfs_client_kmod: false`, then
+  re-converge with the kmod RPM. Expect: `beegfs-client` replaced by
+  `kmod-beegfs` (no conflict error), `…/updates/fs/beegfs_autobuild/beegfs.ko`
+  gone, `modinfo -n beegfs` under `extra/` or `weak-updates/`, client mounted,
+  second converge idempotent. Then `verify` (T13).

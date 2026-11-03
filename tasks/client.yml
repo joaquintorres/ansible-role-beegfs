@@ -1,12 +1,17 @@
 ---
+- name: Remove the autobuilt module, which would shadow kmod-beegfs
+  file:
+    path: "{{ beegfs_kernel_module }}"
+    state: absent
+  become: true
+  when: beegfs_client_kmod | bool
+
 - name: Install packages for BeeGFS client
-  package:
-    name: "{{ item }}"
+  dnf:
+    name: "{{ (beegfs_client_kmod_packages if beegfs_client_kmod | bool else ['beegfs-client']) + ['beegfs-helperd', 'beegfs-utils'] }}"
     state: "{{ beegfs_package_action }}"
-  with_items:
-    - beegfs-client
-    - beegfs-helperd
-    - beegfs-utils
+    allowerasing: true  # kmod-beegfs replaces beegfs-client
+    disable_gpg_check: "{{ beegfs_client_kmod | bool and beegfs_client_kmod_packages | select('search', '\\.rpm$') | list | length > 0 }}"
   become: true
   notify: Restart BeeGFS client service
 
@@ -15,7 +20,7 @@
     path: "/etc/beegfs/beegfs-client-autobuild.conf"
     regexp: "^buildArgs="
     line: "{{ item.line }}"
-  when: item.condition
+  when: not beegfs_client_kmod | bool and item.condition
   with_items:
     - { line: "buildArgs=-j8 BEEGFS_OPENTK_IBVERBS=1", condition: "{{ beegfs_rdma | bool }}" }
     - { line: "buildArgs=-j8", condition: "{{ not beegfs_rdma | bool }}" }
@@ -26,6 +31,7 @@
   package:
     name: "{{ beegfs_distro_vars[ansible_os_family]['kernel_dev_pkg'] }}-{{ ansible_kernel }}"
     state: present
+  when: not beegfs_client_kmod | bool
   notify: Restart BeeGFS client service
   become: true
 
@@ -33,6 +39,7 @@
   package:
     name: "gcc"
     state: present
+  when: not beegfs_client_kmod | bool
   become: true
   notify: Restart BeeGFS client service
 
@@ -40,6 +47,7 @@
   command: /etc/init.d/beegfs-client rebuild
   args:
     creates: "{{ beegfs_kernel_module }}"
+  when: not beegfs_client_kmod | bool
   become: true
   notify: Restart BeeGFS client service
 

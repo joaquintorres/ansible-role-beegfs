@@ -23,6 +23,12 @@ beegfs_interfaces: []
 beegfs_version: "8.4"
 beegfs_major_version: "{{ (beegfs_version | string).split('.') | first }}"
 
+# Install a prebuilt client module (https://gitlab.com/ccad/beegfs-kmod) from a
+# site repo instead of building it on the node.
+beegfs_client_kmod: true
+# Package names, local RPM paths or URLs passed to dnf.
+beegfs_client_kmod_packages: ["kmod-beegfs"]
+
 # Distribution-specific parameters
 beegfs_distro_vars:
   RedHat:

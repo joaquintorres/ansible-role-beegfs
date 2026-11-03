@@ -14,3 +14,17 @@
 - keep flake8-clean.
 
 **Done when:** tests pass on all scenarios.
+
+## Deferred from T06 (2026-11-03)
+
+Add to the checks above:
+
+- `modinfo -n beegfs` is under `/lib/modules/<kernel>/extra/beegfs/` or
+  `weak-updates/beegfs/`, never `beegfs_autobuild`.
+- `/etc/beegfs/beegfs-client-autobuild.conf` has `buildEnabled=false`, and
+  neither `gcc` nor `kernel-devel` is installed (T12 removes them after the
+  build).
+- `beegfs-client.service` is `Type=oneshot` (`systemctl show -p Type`) and
+  active; the override's `Restart=on-failure` is applied.
+- The client survives `systemctl restart beegfs-client` (module unloads and
+  reloads, mount comes back).

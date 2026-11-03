@@ -46,3 +46,23 @@ beegfs_client_kmod_packages: ["kmod-beegfs"]
 `beegfs` module loads, and a client previously deployed with autobuild
 converges to `kmod-beegfs` (with `modinfo -n beegfs` pointing at the kmod
 module, not `beegfs_autobuild`).
+
+## Outcome (2026-11-03)
+
+Done (+21/−8, approved). Differs from the plan above to stay small:
+
+- Migration is `dnf … allowerasing: true` on the install task (swaps an
+  installed `beegfs-client` in one transaction) plus one task deleting the
+  stale autobuild `.ko` before install, so the kmod `%post` depmod drops it.
+  No stop/remove block. The install task is now `dnf` (EL-only role).
+- The four autobuild tasks get a `when:` each instead of a `block:` (avoids
+  re-indenting ~25 lines).
+- `create.yml`'s force-format "Delete kernel module" is unchanged: it points
+  at the autobuild path, which the RPM doesn't own, so it's harmless with kmod.
+- `disable_gpg_check` is true only when an item ends in `.rpm`.
+- `override.conf`: `Type=forking` dropped.
+
+Verified here: ansible-lint, yamllint, syntax check; the role's own
+expressions evaluated for default kmod (`kmod-beegfs`, GPG on), a local RPM
+(GPG off) and `beegfs_client_kmod: false` (`beegfs-client`, autobuild tasks
+run). Not verified: anything on a real client → T11/T13 "Deferred from T06".
