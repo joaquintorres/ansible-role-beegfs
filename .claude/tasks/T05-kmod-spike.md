@@ -111,3 +111,36 @@ spike.sh (and later by T12's build playbook).
   lost the install/modinfo sections. spike.sh now emits a short
   "key findings" notice first and the report in <4 KB chunks; the noisy
   RDMA grep was replaced by `modinfo depends`.
+
+## Still open (review 2026-11-03)
+
+The run 3 conclusions for (6) and (7) are not proven yet. Run 4 must show:
+
+- **R4 — (6) weak-modules:** grep `install.log` for `scriptlet failed` /
+  `warning: %post` (a failing `%post` doesn't fail `dnf install`, and the
+  trailing `depmod -a` hides `weak-modules`' exit code). Record
+  `rpm -qf /usr/sbin/weak-modules` and a non-empty `weak-updates/beegfs/`
+  listing (or explain why it is empty for the build kernel).
+- **R5 — (7) Provides:** record `rpm -q --requires beegfs-utils [beegfs-tools]`.
+  If neither requires `beegfs-client`, (7) is moot; say so.
+- **R8 — (2) RDMA:** add one build per major with RDMA (`modinfo depends`
+  should list `ib_core`/`rdma_cm`). Note which `buildArgs` 7.4/8.x accept
+  (`BEEGFS_OPENTK_IBVERBS`, `BEEGFS_NO_RDMA`, `OFED_INCLUDE_PATH`) by reading
+  the module's `build/Makefile`.
+
+Patch v3 (`files/beegfs-kmod/0001-client-layout-and-runtime.patch`):
+
+- **R6:** `%config(noreplace) /etc/beegfs` so package upgrades keep the
+  role-templated `beegfs-mounts.conf` and autobuild conf. Spike check:
+  modify `beegfs-mounts.conf`, `dnf reinstall`/upgrade, file is kept.
+- **R7:** `Release: %{beegfs_release}.k<kversion with '-' → '_'>` so builds
+  for different kernels have distinct NEVRs. Spike check: `rpm -qp
+  --qf '%{RELEASE}'` contains the kernel.
+
+Spike fixes:
+
+- **R9:** `spike.sh` uses `${GITHUB_WORKSPACE:-$PWD}` everywhere (repo root
+  when run locally); `kmod-spike.yml` gets `permissions: contents: read`.
+
+**Done when:** run 4 is green on all six jobs, the findings above are
+recorded here, and T05 is ticked in the index.

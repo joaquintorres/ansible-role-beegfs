@@ -41,3 +41,17 @@ Done. Probed URLs (HTTP 200 unless noted):
   reports changed when content differs); when `beegfs_update` is true,
   `package_facts` + `assert` refuse to cross major versions (expression
   tested against sample package sets).
+
+## Follow-up (review 2026-11-03) — reopened
+
+- **R2:** run the `package_facts` + major-version `assert` on every run, not
+  only when `beegfs_update` is true, and keep it *before* the repo tasks.
+  Otherwise a 7.x host that picks up the new 8.4 default gets an 8.4 repo
+  file and the next manual `dnf upgrade` crosses majors. The fail message
+  should say to pin `beegfs_version` (e.g. `"7.4.6"`).
+- **R3:** `beegfs_major_version: "{{ (beegfs_version | string).split('.') | first }}"`
+  so an unquoted `beegfs_version: 8.4` still works.
+
+**Done when:** on a host with 7.x packages, the role fails before touching
+the repo file with the default `beegfs_version` (with and without
+`beegfs_update`), and passes with `beegfs_version: "7.4.6"`.

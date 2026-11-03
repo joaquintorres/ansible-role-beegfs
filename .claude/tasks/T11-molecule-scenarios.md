@@ -8,14 +8,18 @@
 `molecule.yml` changes (molecule ≥ 6):
 
 - remove top-level `lint:` and nested `lint:` blocks (lint runs from CI, T15)
-- remove the VirtualBox `provider_raw_config_args` (`createhd`/`storageattach`)
+- replace the VirtualBox `provider_raw_config_args` (`createhd`/`storageattach`)
+  with the libvirt one below
 - `INSTALL.rst`: libvirt + `vagrant-libvirt` + `molecule-plugins[vagrant]`
 - `driver: name: vagrant`, `provider: name: libvirt`
 - platforms: `box: almalinux/8|9|10`, `memory: 2048`, `cpus: 2`, extra disk:
   ```yaml
-  provider_options:
-    storage: ":file, :size => '20G'"
+  provider_raw_config_args:
+    - "storage :file, :size => '20G'"
   ```
+  (R12: `provider_options` renders `libvirt.storage = …`, but `storage` is a
+  method; raw args render `libvirt.storage :file, …`. Check the generated
+  Vagrantfile in `~/.cache/molecule/…` on the first run.)
 - `provisioner.playbooks.prepare/converge`; `inventory.group_vars.all`
   carries `beegfs_version` so one converge playbook serves every scenario
 - `verifier: name: testinfra`, `directory: ../tests`

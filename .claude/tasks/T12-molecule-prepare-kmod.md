@@ -13,10 +13,13 @@ platform-python) and the apt bits.
 2. Install build deps (list from T05) incl. `kernel-devel-{{ ansible_kernel }}`.
 3. `dnf download beegfs-client` into a build dir.
 4. `git clone https://gitlab.com/ccad/beegfs-kmod` at a pinned commit
-   (`beegfs_kmod_git_version`), apply T05 patches if any.
+   (`beegfs_kmod_git_version`, the commit T05 run 4 used), apply
+   `files/beegfs-kmod/*.patch` (v3).
 5. `build-srpm.sh`, then `rpmbuild --rebuild --define "kversion …"`
    (`ansible_kernel` minus `.{{ ansible_architecture }}`), `creates:` on the
    result.
+   Pass `build_extra_options` (default `""`) for RDMA/MOFED builds, using
+   the flags T05 run 4 found (R8).
 6. `set_fact` the resulting RPM path; converge passes it as
    `beegfs_client_kmod_packages`.
 7. Remove build deps afterwards (`gcc`, `kernel-devel`) so the test proves the
