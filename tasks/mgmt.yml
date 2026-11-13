@@ -47,6 +47,19 @@
   when: beegfs_major_version is version('8', '>=')
   notify: Restart BeeGFS mgmt service
 
+- name: Generate a self-signed TLS certificate for the management service
+  shell: >-
+    umask 077 &&
+    openssl req -x509 -newkey rsa:4096 -nodes -days 3650 -subj "/CN={{ inventory_hostname }}"
+    -addext "subjectAltName={{ (['DNS:' ~ inventory_hostname, 'DNS:' ~ ansible_fqdn] + ansible_all_ipv4_addresses | map('regex_replace', '^', 'IP:') | list) | join(',') }}"
+    -keyout /etc/beegfs/key.pem -out /etc/beegfs/cert.pem &&
+    chmod 0644 /etc/beegfs/cert.pem
+  args:
+    creates: /etc/beegfs/cert.pem  # an existing cert/key pair is kept
+  become: true
+  when: beegfs_major_version is version('8', '>=') and not beegfs_tls_disable | bool
+  notify: Restart BeeGFS mgmt service
+
 - name: Initialise the BeeGFS 8 management database
   command: /opt/beegfs/sbin/beegfs-mgmtd --init
   args:

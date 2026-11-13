@@ -96,6 +96,22 @@
     line: "connInterfacesFile = /etc/beegfs/connInterfacesFile"
   become: true
 
+- name: Fetch the management service TLS certificate
+  slurp:
+    src: /etc/beegfs/cert.pem
+  delegate_to: "{{ client_mgmt_host }}"
+  become: true
+  register: beegfs_mgmt_cert
+  when: beegfs_major_version is version('8', '>=') and not beegfs_tls_disable | bool and client_mgmt_host != inventory_hostname
+
+- name: Install the management service TLS certificate for the beegfs CLI
+  copy:
+    content: "{{ beegfs_mgmt_cert.content | b64decode }}"
+    dest: /etc/beegfs/cert.pem
+    mode: "0644"
+  become: true
+  when: beegfs_major_version is version('8', '>=') and not beegfs_tls_disable | bool and client_mgmt_host != inventory_hostname
+
 - name: Copy default beegfs-client config file to enable beegfs_ctl in the management host
   copy:
     remote_src: true
