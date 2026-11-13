@@ -1,0 +1,64 @@
+---
+# Build kmod-beegfs (https://gitlab.com/ccad/beegfs-kmod) for the running
+# kernel and leave it at /var/tmp/kmod-beegfs.rpm. Also usable against any
+# EL 8/9/10 build host:
+#   ansible-playbook -i <host>, molecule/shared/build-kmod.yml -e beegfs_version=8.4
+- name: Build kmod-beegfs
+  hosts: all
+  become: true
+  vars:
+    beegfs_kmod_git_version: 614232ad231458c0f05ed320d1ff40ccaea79567
+    beegfs_release_url: "https://www.beegfs.io/release/beegfs_{{ beegfs_version }}"
+    kmod_kversion: "{{ ansible_kernel | regex_replace('\\.' ~ ansible_architecture ~ '$', '') }}"
+  tasks:
+    - name: Add the BeeGFS repo
+      get_url:
+        url: "{{ beegfs_release_url }}/dists/beegfs-rhel{{ ansible_distribution_major_version }}.repo"
+        dest: /etc/yum.repos.d/beegfs.repo
+        mode: "0644"
+
+    - name: Import the BeeGFS repo key
+      rpm_key:
+        key: "{{ beegfs_release_url }}/gpg/GPG-KEY-beegfs"
+
+    - name: Install dnf config-manager
+      dnf:
+        name: dnf-plugins-core
+
+    - name: Enable the repo that has kernel-rpm-macros
+      command: dnf config-manager --set-enabled {{ 'powertools' if ansible_distribution_major_version == '8' else 'crb' }}
+      changed_when: false
+
+    - name: Install build dependencies
+      dnf:
+        name: [rpm-build, git, perl, make, gcc, elfutils-libelf-devel, kernel-rpm-macros,
+               redhat-rpm-config, bzip2, cpio, "kernel-devel-{{ ansible_kernel }}"]
+
+    - name: Copy the beegfs-kmod patches
+      copy:
+        src: "{{ item }}"
+        dest: /var/tmp/
+        mode: "0644"
+      with_fileglob: "{{ playbook_dir }}/../../files/beegfs-kmod/*.patch"
+
+    - name: Build kmod-beegfs
+      shell: |
+        set -euo pipefail
+        rm -rf /var/tmp/kmod-build && mkdir /var/tmp/kmod-build && cd /var/tmp/kmod-build
+        dnf -q download beegfs-client
+        git clone -q https://gitlab.com/ccad/beegfs-kmod.git
+        git -C beegfs-kmod checkout -q {{ beegfs_kmod_git_version }}
+        git -C beegfs-kmod apply /var/tmp/*.patch
+        (cd beegfs-kmod && ./build-srpm.sh ../beegfs-client-*.rpm)
+        kversion={{ kmod_kversion }}
+        release="$(rpm -qp --qf '%{RELEASE}' beegfs-client-*.rpm).k${kversion//-/_}"  # one NEVR per kernel
+        rpmbuild --rebuild --define "kversion $kversion" --define "beegfs_release $release" ~/rpmbuild/SRPMS/kmod-beegfs-*.src.rpm
+        cp ~/rpmbuild/RPMS/{{ ansible_architecture }}/kmod-beegfs-*.rpm /var/tmp/kmod-beegfs.rpm
+      args:
+        executable: /bin/bash
+        creates: /var/tmp/kmod-beegfs.rpm
+
+    - name: Remove the compiler and kernel headers so clients are tested without them
+      dnf:
+        name: [gcc, kernel-devel]
+        state: absent

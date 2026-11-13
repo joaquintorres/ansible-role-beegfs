@@ -52,3 +52,14 @@ Add to the checks above:
 - `beegfs_tls_disable: true` variant (side effect in `vagrant-el10`): no
   cert generated, `tls-disable = true`, health check passes with
   `--tls-disable`.
+
+## Phase 1 (2026-11-13) — committed, waiting for the first CI run
+
+Approved plan: phase 1 = `default` (EL9, 8.4) green; phase 2 = el8/el10 +
+multi-node `vagrant-all`; phase 3 = side-effect variants. Runs on GitHub
+Actions with KVM (`.github/workflows/molecule.yml`), failures surface as
+annotations. Shared `molecule/shared/{prepare,converge,build-kmod}.yml`
+and `molecule/INSTALL.rst` replace the per-scenario copies; the role is
+referenced as `stackhpc.beegfs` (meta namespace + role_name). Prepare
+updates the kernel and reboots so `kernel-devel-$(uname -r)` exists; the
+kmod RPM is left at `/var/tmp/kmod-beegfs.rpm` for converge.

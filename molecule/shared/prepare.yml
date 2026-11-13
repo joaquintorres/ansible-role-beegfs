@@ -1,0 +1,22 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python3 || test -e /usr/libexec/platform-python || dnf -y install python3
+      changed_when: false
+
+    - name: Update the kernel, so a matching kernel-devel is in the repos
+      dnf:
+        name: kernel
+        state: latest
+      register: kernel_update
+
+    - name: Boot the updated kernel
+      reboot:
+      when: kernel_update is changed
+
+- name: Build kmod-beegfs
+  import_playbook: build-kmod.yml

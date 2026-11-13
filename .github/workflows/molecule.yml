@@ -1,0 +1,63 @@
+---
+# Molecule scenarios on Vagrant + libvirt, using the runner's KVM. On failure
+# the errors and the end of the log are emitted as annotations (readable via
+# the public check-runs API); the full log is uploaded as an artifact.
+name: molecule
+
+"on":
+  workflow_dispatch:
+  push:
+    branches: [el8-9-10]
+    paths-ignore: [".claude/**", "README.md"]
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [default]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable KVM for the runner user
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Install libvirt and Vagrant
+        run: |
+          wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q
+          sudo apt-get install -yq vagrant qemu-kvm libvirt-daemon-system libvirt-dev
+          sudo chmod 666 /var/run/libvirt/libvirt-sock
+          vagrant plugin install vagrant-libvirt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Molecule and collections
+        run: |
+          pip install -r molecule/requirements.txt
+          ansible-galaxy collection install -r requirements.yml
+      - name: molecule test
+        env:
+          PY_COLORS: "0"
+          ANSIBLE_NOCOLOR: "1"
+        run: |
+          set -o pipefail
+          molecule test -s ${{ matrix.scenario }} 2>&1 | tee molecule.log
+      - name: Report failure
+        if: failure()
+        run: |
+          annotate() { m=$(cat); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::error title=${{ matrix.scenario }}: $1::$m"; }
+          touch molecule.log
+          { grep -E -A8 'fatal:|FAILED!|CRITICAL|ERROR|^E  |Idempotence test failed' molecule.log || true; } | tail -c 3800 | annotate "errors"
+          tail -c 3800 molecule.log | annotate "end of log"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: molecule-${{ matrix.scenario }}
+          path: molecule.log
