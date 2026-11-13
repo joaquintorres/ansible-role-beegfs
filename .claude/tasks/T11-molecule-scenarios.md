@@ -67,3 +67,12 @@ and `molecule/INSTALL.rst` replace the per-scenario copies; the role is
 referenced as `stackhpc.beegfs` (meta namespace + role_name). Prepare
 updates the kernel and reboots so `kernel-devel-$(uname -r)` exists; the
 kmod RPM is left at `/var/tmp/kmod-beegfs.rpm` for converge.
+
+### Run 1 (43470029513, ee3294c) — converge failed
+
+- ✅ Runner KVM, vagrant-libvirt install, `create`, `prepare` (kernel
+  update + reboot + kmod build) all passed.
+- ❌ converge: `tasks/oss.yml` read `oss_dev_stat.exists` / `.islnk` /
+  `.lnk_source` / `.path` instead of `oss_dev_stat.stat.*` — broken since
+  2019 (506ed19) for any OSS with `dev`. Fixed (2 lines).
+- CI note: anonymous GitHub API allows 60 req/h; poll runs every ≥4 min.
