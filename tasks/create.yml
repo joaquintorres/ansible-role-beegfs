@@ -131,8 +131,6 @@
 - include_tasks: tuning.yml
   when: beegfs_enable.tuning | default(false) | bool
 
-- meta: flush_handlers
-
 - include_tasks: client.yml
   vars:
     client_mgmt_host: "{{ client_item.mgmt_host | default(beegfs_mgmt_host) }}"
@@ -180,6 +178,10 @@
                     + (beegfs_client | map(attribute='mgmt_host', default=beegfs_mgmt_host) | map('regex_replace', '^(.*)$', '/etc/beegfs/beegfs-client-\\1.conf') | list + ['/etc/beegfs/beegfs-client.conf'] if beegfs_enable.client | bool else []) }}"
   become: true
   notify: Restart BeeGFS services
+
+# Restart services only once all their config, incl. connInterfacesFile and
+# the auth secret, is in place.
+- meta: flush_handlers
 
 - name: Start and enable BeeGFS server services
   service:

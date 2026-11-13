@@ -48,7 +48,7 @@ jobs:
           ANSIBLE_NOCOLOR: "1"
         run: |
           set -o pipefail
-          molecule test -s ${{ matrix.scenario }} 2>&1 | tee molecule.log
+          molecule test -s ${{ matrix.scenario }} --destroy never 2>&1 | tee molecule.log
       - name: Report failure
         if: failure()
         run: |
@@ -56,6 +56,12 @@ jobs:
           touch molecule.log
           { grep -E -A8 'fatal:|FAILED!|CRITICAL|ERROR|^E  |Idempotence test failed' molecule.log || true; } | tail -c 3800 | annotate "errors"
           tail -c 3800 molecule.log | annotate "end of log"
+          inv=$(ls -d ~/.ansible/tmp/molecule.*.${{ matrix.scenario }}/inventory | head -1)
+          ansible all -i "$inv" -b -m shell -a 'systemctl --no-pager --failed; journalctl --no-pager -n 60 -u "beegfs-*"' 2>&1 \
+            | tail -c 3800 | annotate "service journal"
+      - name: Destroy VMs
+        if: always()
+        run: molecule destroy -s ${{ matrix.scenario }}
       - uses: actions/upload-artifact@v6
         if: always()
         with:

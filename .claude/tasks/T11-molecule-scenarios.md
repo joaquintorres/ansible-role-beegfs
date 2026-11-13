@@ -76,3 +76,14 @@ kmod RPM is left at `/var/tmp/kmod-beegfs.rpm` for converge.
   `.lnk_source` / `.path` instead of `oss_dev_stat.stat.*` — broken since
   2019 (506ed19) for any OSS with `dev`. Fixed (2 lines).
 - CI note: anonymous GitHub API allows 60 req/h; poll runs every ≥4 min.
+
+### Run 2 (43478365055, 0404a4c) — converge failed
+
+- ✅ OSS stat fix works; converge reached `meta: flush_handlers`.
+- ❌ `Restart BeeGFS mgmt service` handler: beegfs-mgmtd failed to start.
+  Most likely cause (journal not captured): the flush sat before
+  client.yml, i.e. before `connInterfacesFile` and `/etc/beegfs/conn.auth`
+  are written, while the 8.x TOML already says `auth-disable = false`.
+  Fix: flush handlers just before "Start and enable BeeGFS server
+  services". Workflow now keeps the VM on failure and annotates
+  `systemctl --failed` + the beegfs-* journal before destroying it.
