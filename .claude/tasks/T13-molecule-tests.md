@@ -37,3 +37,18 @@ Add to the checks above:
 - Auth disabled: one scenario (`vagrant-el8`) converges again with
   `beegfs_conn_auth_secret: ""` as a side effect, then the same service and
   mount checks pass and the configs show `connDisableAuthentication = true`.
+
+## Deferred from T09 (2026-11-13)
+
+8.x only:
+- `beegfs-mgmtd` active; `/var/lib/beegfs/mgmtd.sqlite` exists;
+  `beegfs-mgmtd.toml` has the four role-set keys uncommented.
+- `/etc/beegfs/key.pem` is `0600` and `cert.pem` `0644` on the mgmt host;
+  each client's `cert.pem` matches the mgmt host's.
+- `BEEGFS_MGMTD_ADDR=<mgmt>:8010 beegfs health check` exits 0 on a client
+  (proves TLS + auth through the CLI), and `beegfs node list` shows meta,
+  storage and client nodes.
+- No `beegfs-mgmtd.conf` edits and no `beegfs_mgmt_path` directory on 8.x.
+- `beegfs_tls_disable: true` variant (side effect in `vagrant-el10`): no
+  cert generated, `tls-disable = true`, health check passes with
+  `--tls-disable`.

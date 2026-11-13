@@ -18,3 +18,14 @@ platforms `EL: ["8", "9", "10"]` only.
 - Example inventory: `ansible_user=centos` → `rocky`/`almalinux`.
 - Tests section: new scenario names, libvirt deps
   (`vagrant-libvirt`, `molecule-plugins[vagrant]`).
+
+## From T09 (2026-11-13)
+
+- TLS: the role generates a self-signed cert on the mgmt host unless
+  `/etc/beegfs/cert.pem` + `key.pem` already exist (place your own there
+  first); `beegfs_tls_disable: true` turns TLS off. Clients get the cert
+  copied for the `beegfs` CLI; with several mgmt hosts per client, the last
+  one's cert wins (the CLI reads one default path).
+- `beegfs_mgmt_path` is unused on 8.x (DB at `/var/lib/beegfs/mgmtd.sqlite`).
+- The `beegfs` CLI needs `BEEGFS_MGMTD_ADDR=<mgmt>:8010` (or
+  `--mgmtd-addr`).

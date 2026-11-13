@@ -17,7 +17,7 @@ the user's explicit approval, asked for with a justification — see
 - [x] [T06](T06-client-kmod.md) Client installs `kmod-beegfs`
 - [x] [T07](T07-conn-auth.md) Connection authentication
 - [x] [T08](T08-helperd.md) Guard `beegfs-helperd` for 8.x
-- [ ] [T09](T09-mgmtd-v8.md) 8.x mgmtd, TLS, `beegfs-tools`
+- [x] [T09](T09-mgmtd-v8.md) 8.x mgmtd, TLS, `beegfs-tools`
 - [ ] [T10](T10-rdma-packages.md) RDMA package list for EL8+
 - [ ] [T11](T11-molecule-scenarios.md) Molecule scenarios for EL8/9/10
 - [ ] [T12](T12-molecule-prepare-kmod.md) Molecule prepare builds kmod RPM
