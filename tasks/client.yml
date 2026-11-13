@@ -8,7 +8,7 @@
 
 - name: Install packages for BeeGFS client
   dnf:
-    name: "{{ (beegfs_client_kmod_packages if beegfs_client_kmod | bool else ['beegfs-client']) + (['beegfs-helperd'] if beegfs_major_version is version('8', '<') else []) + ['beegfs-utils'] }}"
+    name: "{{ (beegfs_client_kmod_packages if beegfs_client_kmod | bool else ['beegfs-client']) + (['beegfs-helperd'] if beegfs_major_version is version('8', '<') else ['beegfs-tools']) + ['beegfs-utils'] }}"
     state: "{{ beegfs_package_action }}"
     allowerasing: true  # kmod-beegfs replaces beegfs-client
     disable_gpg_check: "{{ beegfs_client_kmod | bool and beegfs_client_kmod_packages | select('search', '\\.rpm$') | list | length > 0 }}"
