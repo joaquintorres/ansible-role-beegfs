@@ -44,3 +44,15 @@ pass, including idempotence.
   `kmod-beegfs` (no conflict error), `…/updates/fs/beegfs_autobuild/beegfs.ko`
   gone, `modinfo -n beegfs` under `extra/` or `weak-updates/`, client mounted,
   second converge idempotent. Then `verify` (T13).
+
+## Deferred from T10 (2026-11-13)
+
+Molecule runs with `beegfs_rdma: false`, so the RDMA list is never
+installed by converge. In each scenario's verify (or a side effect), per EL:
+
+- `dnf -y install --setopt=tsflags=test <beegfs_distro_vars.RedHat.rdma_dev_pkgs>`
+  succeeds (BeeGFS repo configured; AppStream enabled on EL9/10).
+- Converge `tasks/rdma.yml` alone twice with `beegfs_rdma: true` and
+  `state: present`: second run reports no changes (idempotence with
+  `infiniband-diags`). Loading the IB modules may fail without RDMA
+  hardware — check only the package task.

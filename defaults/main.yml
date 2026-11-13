@@ -51,7 +51,7 @@ beegfs_distro_vars:
     kernel_dev_pkg: "kernel-devel"
     rdma_dev_pkgs:
       - "librdmacm"
-      - "libibmad"
+      - "infiniband-diags"  # provides libibmad on EL8+
       - "libibumad"
       - "rdma-core"
       - "libibverbs"

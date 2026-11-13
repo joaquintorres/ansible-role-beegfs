@@ -11,3 +11,19 @@ if 7.4 and 8.x differ). Molecule runs with `beegfs_rdma: false`, so add one
 verify notes.
 
 **Done when:** `tasks/rdma.yml` installs cleanly on EL8/9/10.
+
+## Outcome (2026-11-13)
+
+Done (1 line): `libibmad` → `infiniband-diags`, which provides `libibmad`
+on EL8+. Checked against AlmaLinux 8/9/10 BaseOS + AppStream repo metadata
+and the BeeGFS repos:
+
+- `librdmacm`, `libibumad`, `rdma-core`, `libibverbs`, `libibverbs-utils`:
+  BaseOS on EL8/9/10.
+- `infiniband-diags`: BaseOS on EL8, AppStream on EL9/10.
+- `libbeegfs-ib`: present for 7.4.6 (EL8/9), 7.4.7 (EL10) and 8.4
+  (EL8/9/10) — not dropped in 8.x.
+- `rdma.yml`'s modules (`ib_umad`, `ib_uverbs`, `rdma_ucm`) are stock EL
+  kernel modules; unchanged.
+
+Not verified: an actual install (no dnf here) → T11 "Deferred from T10".
