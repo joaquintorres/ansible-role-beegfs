@@ -11,6 +11,7 @@
     path: "{{ beegfs_mgmt_path }}"
     state: directory
   become: true
+  when: beegfs_major_version is version('8', '<')
   notify: Restart BeeGFS mgmt service
 
 - name: Run management service setup script
@@ -18,6 +19,7 @@
   args:
     creates: "{{ beegfs_mgmt_path }}/originalNodeID"
   become: true
+  when: beegfs_major_version is version('8', '<')
   notify: Restart BeeGFS mgmt service
 
 - name: Specify connInterfacesFile
@@ -26,5 +28,30 @@
     regexp: "^connInterfacesFile"
     line: "connInterfacesFile           = /etc/beegfs/connInterfacesFile"
   become: true
+  when: beegfs_major_version is version('8', '<')
+  notify: Restart BeeGFS mgmt service
+
+- name: Configure the BeeGFS 8 management service
+  lineinfile:
+    path: /etc/beegfs/beegfs-mgmtd.toml
+    regexp: "^#?\\s*{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ settings | dict2items }}"
+  vars:
+    settings:
+      auth-disable: "{{ (beegfs_conn_auth_secret | length == 0) | lower }}"
+      auth-file: '"{{ beegfs_conn_auth_file }}"'
+      tls-disable: "{{ beegfs_tls_disable | bool | lower }}"
+      interfaces: "{{ (beegfs_interfaces or ['*']) | to_json }}"
+  become: true
+  when: beegfs_major_version is version('8', '>=')
+  notify: Restart BeeGFS mgmt service
+
+- name: Initialise the BeeGFS 8 management database
+  command: /opt/beegfs/sbin/beegfs-mgmtd --init
+  args:
+    creates: /var/lib/beegfs/mgmtd.sqlite
+  become: true
+  when: beegfs_major_version is version('8', '>=')
   notify: Restart BeeGFS mgmt service
 ...

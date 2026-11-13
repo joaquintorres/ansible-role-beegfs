@@ -37,6 +37,11 @@ beegfs_client_kmod: true
 # Package names, local RPM paths or URLs passed to dnf.
 beegfs_client_kmod_packages: ["kmod-beegfs"]
 
+# BeeGFS 8: disable TLS for the management service. Otherwise the role uses
+# /etc/beegfs/{cert,key}.pem on the mgmt host, generating a self-signed pair
+# if they don't exist.
+beegfs_tls_disable: false
+
 # Distribution-specific parameters
 beegfs_distro_vars:
   RedHat:

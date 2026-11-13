@@ -93,4 +93,5 @@
   with_items:
     - { name: "{{ beegfs_meta_path }}", enable: "{{ beegfs_enable.meta }}" }
     - { name: "{{ beegfs_mgmt_path }}", enable: "{{ beegfs_enable.mgmt }}" }
+    - { name: /var/lib/beegfs/mgmtd.sqlite, enable: "{{ beegfs_enable.mgmt and beegfs_major_version is version('8', '>=') }}" }
 ...
