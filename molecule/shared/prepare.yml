@@ -18,5 +18,15 @@
       reboot:
       when: kernel_update is changed
 
+    - name: Gather network facts
+      setup:
+        gather_subset: [network]
+
+    - name: Resolve the hostname to the VM's address like on a real cluster, not 127.0.1.1 (Vagrant)
+      lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        line: "{{ ansible_default_ipv4.address }} {{ inventory_hostname }}"
+
 - name: Build kmod-beegfs
   import_playbook: build-kmod.yml

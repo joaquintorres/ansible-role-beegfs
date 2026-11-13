@@ -87,3 +87,20 @@ kmod RPM is left at `/var/tmp/kmod-beegfs.rpm` for converge.
   Fix: flush handlers just before "Start and enable BeeGFS server
   services". Workflow now keeps the VM on failure and annotates
   `systemctl --failed` + the beegfs-* journal before destroying it.
+
+### Run 3 (43485723293, 89eefe8) — converge failed at client start
+
+- ✅ Flush move works: mgmtd, meta, storage restarted without errors.
+- ❌ beegfs-client: `mount(2) … Operation canceled`, with
+  `sysMgmtdHost=127.0.1.1`. In the 8.4 module source this is the mount
+  sanity check (`__App_mountServerCheck`): mgmt init, root stat on meta,
+  storage free space — any failing cancels the mount; the reason goes to
+  the kernel log, which wasn't captured.
+- Suspect: Vagrant maps the hostname to 127.0.1.1 while mgmtd uses
+  `interfaces = ["eth0"]`. prepare now maps the hostname to the VM's IP
+  like real DNS would (test-environment fix, not role). Diagnostics now
+  annotate services/ports/hostname, the beegfs kernel log and the server
+  journals separately.
+- 8.4 client also warns that SELinux needs `sysSELinuxEnabled = true`
+  (client) and `storeClientXAttrs = true` (meta); not a mount blocker per
+  the source, but likely needed for correct labels → check after green.

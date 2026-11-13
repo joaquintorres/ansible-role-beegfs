@@ -57,8 +57,10 @@ jobs:
           { grep -E -A8 'fatal:|FAILED!|CRITICAL|ERROR|^E  |Idempotence test failed' molecule.log || true; } | tail -c 3800 | annotate "errors"
           tail -c 3800 molecule.log | annotate "end of log"
           inv=$(ls -d ~/.ansible/tmp/molecule.*.${{ matrix.scenario }}/inventory | head -1)
-          ansible all -i "$inv" -b -m shell -a 'systemctl --no-pager --failed; journalctl --no-pager -n 60 -u "beegfs-*"' 2>&1 \
-            | tail -c 3800 | annotate "service journal"
+          diag() { ansible all -i "$inv" -b -m shell -a "$2" 2>&1 | tail -c 3800 | annotate "$1"; }
+          diag "services" 'systemctl --no-pager --failed; systemctl --no-pager -n 0 status "beegfs-*" | grep -E "^. |Active:"; ss -tlnp | grep beegfs; getent hosts $(hostname)'
+          diag "kernel log" 'journalctl --no-pager -k | grep -i beegfs | tail -40'
+          diag "server journal" 'journalctl --no-pager -n 50 -u beegfs-mgmtd -u beegfs-meta -u "beegfs-storage@*"'
       - name: Destroy VMs
         if: always()
         run: molecule destroy -s ${{ matrix.scenario }}
