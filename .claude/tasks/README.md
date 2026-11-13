@@ -15,7 +15,7 @@ the user's explicit approval, asked for with a justification — see
 - [x] [T04](T04-xfs-mount-opts.md) Drop `nobarrier`
 - [x] [T05](T05-kmod-spike.md) Spike: beegfs-kmod against 7.4 / 8.x / EL8-10
 - [x] [T06](T06-client-kmod.md) Client installs `kmod-beegfs`
-- [ ] [T07](T07-conn-auth.md) Connection authentication
+- [x] [T07](T07-conn-auth.md) Connection authentication
 - [ ] [T08](T08-helperd.md) Guard `beegfs-helperd` for 8.x
 - [ ] [T09](T09-mgmtd-v8.md) 8.x mgmtd, TLS, `beegfs-tools`
 - [ ] [T10](T10-rdma-packages.md) RDMA package list for EL8+

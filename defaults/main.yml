@@ -18,6 +18,14 @@ beegfs_kmod_preload: []
 # (leaving empty means InfiniBand & RDMA enabled devices are preferred)
 beegfs_interfaces: []
 
+# Shared secret for BeeGFS connection authentication (use Ansible Vault).
+# Empty disables authentication (connDisableAuthentication = true).
+beegfs_conn_auth_secret: ""
+beegfs_conn_auth_file: /etc/beegfs/conn.auth
+beegfs_conn_auth_lines:
+  connAuthFile: "{{ beegfs_conn_auth_file if beegfs_conn_auth_secret | length > 0 else '' }}"
+  connDisableAuthentication: "{{ (beegfs_conn_auth_secret | length == 0) | lower }}"
+
 # BeeGFS release, as used in the repo path: "8.4" for 8.x, "7.4.6" for 7.x.
 # The role does not upgrade across major versions.
 beegfs_version: "8.4"

@@ -28,3 +28,12 @@ Add to the checks above:
   active; the override's `Restart=on-failure` is applied.
 - The client survives `systemctl restart beegfs-client` (module unloads and
   reloads, mount comes back).
+
+## Deferred from T07 (2026-11-13)
+
+- With `beegfs_conn_auth_secret: molecule-test` (T11): `/etc/beegfs/conn.auth`
+  exists, mode `0400`, root-owned; every service is active and the client
+  mount is writable (proves auth works end to end).
+- Auth disabled: one scenario (`vagrant-el8`) converges again with
+  `beegfs_conn_auth_secret: ""` as a side effect, then the same service and
+  mount checks pass and the configs show `connDisableAuthentication = true`.

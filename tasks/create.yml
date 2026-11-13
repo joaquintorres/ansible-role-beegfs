@@ -148,6 +148,38 @@
     dest: /etc/beegfs/connInterfacesFile
   become: true
 
+- name: Write the connection authentication secret
+  copy:
+    content: "{{ beegfs_conn_auth_secret }}"
+    dest: "{{ beegfs_conn_auth_file }}"
+    mode: "0400"
+  no_log: true
+  become: true
+  when: beegfs_conn_auth_secret | length > 0
+  notify: Restart BeeGFS services
+
+- name: Configure connection authentication in every BeeGFS config file
+  lineinfile:
+    path: "{{ item.0 }}"
+    regexp: "^{{ item.1.key }}\\s*="
+    line: "{{ item.1.key }} = {{ item.1.value }}"
+  loop: "{{ conf_files | product(beegfs_conn_auth_lines | dict2items) | list }}"
+  vars:
+    # Config files of the services enabled on this host, concatenated:
+    # - /etc/beegfs/beegfs-mgmtd.conf (7.x only; 8.x mgmtd is configured in TOML)
+    # - /etc/beegfs/beegfs-meta.conf
+    # - /etc/beegfs/<port>.d/beegfs-storage.conf for each beegfs_oss port
+    # - /etc/beegfs/beegfs-client-<mgmt_host>.conf for each beegfs_client entry
+    #   (mgmt_host defaults to beegfs_mgmt_host), plus beegfs-client.conf, the
+    #   copy that beegfs-ctl reads on the mgmt host
+    # Each disabled service contributes an empty list.
+    conf_files: "{{ (['/etc/beegfs/beegfs-mgmtd.conf'] if beegfs_enable.mgmt | bool and beegfs_major_version is version('8', '<') else [])
+                    + (['/etc/beegfs/beegfs-meta.conf'] if beegfs_enable.meta | bool else [])
+                    + (beegfs_oss | map(attribute='port') | map('string') | map('regex_replace', '^', '/etc/beegfs/') | map('regex_replace', '$', '.d/beegfs-storage.conf') | list if beegfs_enable.oss | bool else [])
+                    + (beegfs_client | map(attribute='mgmt_host', default=beegfs_mgmt_host) | map('regex_replace', '^(.*)$', '/etc/beegfs/beegfs-client-\\1.conf') | list + ['/etc/beegfs/beegfs-client.conf'] if beegfs_enable.client | bool else []) }}"
+  become: true
+  notify: Restart BeeGFS services
+
 - name: Start and enable BeeGFS server services
   service:
     name: "{{ item.name }}"
