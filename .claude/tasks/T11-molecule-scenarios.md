@@ -104,3 +104,17 @@ kmod RPM is left at `/var/tmp/kmod-beegfs.rpm` for converge.
 - 8.4 client also warns that SELinux needs `sysSELinuxEnabled = true`
   (client) and `storeClientXAttrs = true` (meta); not a mount blocker per
   the source, but likely needed for correct labels → check after green.
+
+### Run 4 (43488179023, 77a430c) — converge failed, causes found
+
+- ✅ Hostname fix: meta reached mgmtd at the VM IP and registered.
+- ❌ beegfs-storage@8003 exited: 8.x renamed `connStoragePortTCP/UDP` to
+  `connStoragePort` and refuses both together.
+- ❌ client: `connClientPortUDP` renamed to `connClientPort` in 8.x →
+  "Configuration error: Initialization of common objects failed" → mount
+  sanity check cancels the mount.
+- Fix (role, +9): key names depend on `beegfs_major_version`; UDP storage
+  task 7.x only. Tested against the shipped 8.4 and 7.4.6 confs (keys set
+  in place, idempotent).
+- mgmtd logs "no license loaded … Feature verification failed" for some
+  requests; registration still works. Watch whether it matters.

@@ -83,10 +83,12 @@
   become: true
 
 - name: Configure beegfs-client config file to use the specified port
+  vars:
+    key: "{{ 'connClientPort' if beegfs_major_version is version('8', '>=') else 'connClientPortUDP' }}"  # renamed in 8.x
   lineinfile:
     dest: "/etc/beegfs/beegfs-client-{{ client_mgmt_host }}.conf"
-    regexp: "^connClientPortUDP"
-    line: "connClientPortUDP = {{ client_port }}"
+    regexp: "^{{ key }}\\s*="
+    line: "{{ key }} = {{ client_port }}"
   become: true
 
 - name: Configure beegfs-client config file to ensure the specifed connection interface is used
