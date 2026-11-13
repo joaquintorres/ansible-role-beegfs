@@ -42,9 +42,7 @@
     daemon-reload: true
     state: restarted
   become: true
-  with_items:
-    - beegfs-helperd
-    - beegfs-client
+  with_items: "{{ (['beegfs-helperd'] if beegfs_major_version is version('8', '<') else []) + ['beegfs-client'] }}"
   when: beegfs_enable.client | bool
   retries: 3
   delay: 3

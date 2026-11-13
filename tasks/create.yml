@@ -210,7 +210,7 @@
   become: true
   when: item.enable | bool
   with_items:
-    - { name: beegfs-helperd, enable: "{{ beegfs_enable.client }}" }
+    - { name: beegfs-helperd, enable: "{{ beegfs_enable.client and beegfs_major_version is version('8', '<') }}" }
     - { name: beegfs-client, enable: "{{ beegfs_enable.client }}" }
   retries: 3
   delay: 3
