@@ -1,0 +1,83 @@
+---
+# Molecule scenarios on Vagrant + libvirt, using the runner's KVM. On failure
+# the errors and the end of the log are emitted as annotations (readable via
+# the public check-runs API); the full log is uploaded as an artifact.
+name: molecule
+
+"on":
+  workflow_dispatch:
+  push:
+    branches: [master, el8-9-10]
+    paths-ignore: [".claude/**", "README.md"]
+  pull_request:
+    paths-ignore: [".claude/**", "README.md"]
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [default, vagrant-el8, vagrant-el10, vagrant-all, vagrant-migrate, vagrant-noauth]
+        include:
+          - scenario: vagrant-el8
+            ansible_core: "ansible-core<2.17"  # EL8's dnf bindings need Python 3.6 targets
+            collections: "community.general:<12.0.0"  # 12 needs Python 3.7+ on targets
+          - scenario: vagrant-migrate  # EL8 as well
+            ansible_core: "ansible-core<2.17"
+            collections: "community.general:<12.0.0"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable KVM for the runner user
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Install libvirt and Vagrant
+        run: |
+          wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q
+          sudo apt-get install -yq vagrant qemu-kvm libvirt-daemon-system libvirt-dev
+          sudo chmod 666 /var/run/libvirt/libvirt-sock
+          vagrant plugin install vagrant-libvirt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Molecule and collections
+        run: |
+          pip install -r molecule/requirements.txt "${{ matrix.ansible_core || 'ansible-core>=2.15' }}"
+          ansible-galaxy collection install -r requirements.yml
+          if [ -n "${{ matrix.collections }}" ]; then ansible-galaxy collection install --force "${{ matrix.collections }}"; fi
+      - name: molecule test
+        env:
+          PY_COLORS: "0"
+          ANSIBLE_NOCOLOR: "1"
+        run: |
+          set -o pipefail
+          molecule test -s ${{ matrix.scenario }} --destroy never 2>&1 | tee molecule.log
+      - name: Report failure
+        if: failure()
+        run: |
+          annotate() { m=$(cat); m=${m//'%'/'%25'}; m=${m//$'\r'/}; m=${m//$'\n'/'%0A'}; echo "::error title=${{ matrix.scenario }}: $1::$m"; }
+          touch molecule.log
+          { grep -E -A8 'fatal:|FAILED!|CRITICAL|ERROR|^E  |Idempotence test failed' molecule.log || true; } | tail -c 3800 | annotate "errors"
+          tail -c 3800 molecule.log | annotate "end of log"
+          inv=$(ls -d ~/.ansible/tmp/molecule.*.${{ matrix.scenario }}/inventory 2>/dev/null | head -1)
+          [ -n "$inv" ] || exit 0  # failed before any VM existed
+          diag() { ansible all -i "$inv" -b -m shell -a "$2" 2>&1 | tail -c 3800 | annotate "$1"; }
+          diag "services" 'systemctl --no-pager --failed; systemctl --no-pager -n 0 status "beegfs-*" | grep -E "^. |Active:"; ss -tlnp | grep beegfs; getent hosts $(hostname)'
+          diag "kernel log" 'journalctl --no-pager -k | grep -i beegfs | tail -40'
+          diag "client" 'uname -r; rpm -q gcc kernel-devel elfutils-libelf-devel beegfs-client kmod-beegfs; ls -l /lib/modules/$(uname -r)/updates/fs/beegfs_autobuild/; journalctl --no-pager -n 40 -u beegfs-client'
+          diag "server journal" 'journalctl --no-pager -n 50 -u beegfs-mgmtd -u beegfs-meta -u "beegfs-storage@*"'
+      - name: Destroy VMs
+        if: always()
+        run: molecule destroy -s ${{ matrix.scenario }}
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: molecule-${{ matrix.scenario }}
+          path: molecule.log

@@ -1,6 +1,6 @@
 # Plan: bring stackhpc.beegfs to EL 8/9/10 and BeeGFS 7.4 / 8.x
 
-Status: draft (2026-10-17). Task files live in [`tasks/`](tasks/); the version
+Status: in progress (2026-10-17, review follow-ups 2026-11-03). Task files live in [`tasks/`](tasks/); the version
 chart is in [`support-matrix.md`](support-matrix.md).
 
 ## Goal
@@ -24,6 +24,11 @@ on-node autobuild.
 - **Version branches stay small.** Where 7.4 and 8.x differ, use a
   `when: beegfs_major_version is version('8', '>=')` guard on the existing
   task, or add one sibling task. No separate task trees per version.
+- **At most 20 lines of code per task without asking.** Count added +
+  changed lines outside `.claude/` (`git diff --numstat -- . ':!.claude'`,
+  first column; deleted lines don't count). Before going over 20, stop and ask
+  the user explicitly, giving the expected line count and why the smaller
+  version isn't enough. Approval covers that task only.
 - **Debian/Ubuntu support is removed.** Delete the Debian code paths
   (`apt`/`apt_key` tasks, `beegfs_distro_vars.Debian`), the Ubuntu Molecule
   scenarios and the Debian/Ubuntu `meta/main.yml` platforms, and fail fast on
@@ -59,6 +64,9 @@ without arch>"` produces `kmod-beegfs-<ver>.rpm`. That package:
 - Installs `beegfs.ko` to `/lib/modules/<kversion>.<arch>/extra/beegfs/` and
   registers it with `weak-modules`, so it survives kABI-compatible kernel
   updates within one EL minor stream.
+- `Release` is copied from `beegfs-client`, so builds for two kABI streams
+  get the same NEVR and cannot share a repo → the patch appends a kernel tag
+  to `Release` (T05 patch v3).
 - Accepts `kmod_name_extra` / `build_extra_options` for MOFED builds
   (`kmod-beegfs-mofed`).
 - Was last touched for BeeGFS 7.2.4 / EL 8.4 → **must be validated against
@@ -71,7 +79,10 @@ publish the RPMs to a **site repo** that the hosts already have configured;
 the role only installs by package name and does not upload RPM files.
 Molecule is the one exception and passes a local RPM path built in
 `prepare.yml`. When `false`, keep the existing
-autobuild path untouched for anyone who still wants it.
+autobuild path untouched for anyone who still wants it. Because the default
+is `true` and `kmod-beegfs` conflicts with `beegfs-client`, T06 also migrates
+existing autobuild clients (remove `beegfs-client` and the stale autobuild
+module before installing).
 
 Build side: a standalone playbook `molecule/shared/build-kmod.yml` (reused by
 Molecule `prepare.yml`, also usable against a real build host) that downloads
@@ -124,8 +135,33 @@ the OSS needs a block device to format.
    distributed to nodes that run `beegfs-tools`. User-supplied cert/key
    override it; `beegfs_tls_disable` exists but defaults to `false`.
 5. **Debian/Ubuntu support removed**, including role code paths (T16).
+6. **Work happens on a feature branch** (`el8-9-10`) from 2026-11-03 on, merged
+   to `master` once T13 passes. `master` at `36bb3a1` already defaults to 8.4
+   but cannot deploy it (helperd, 7.x mgmtd setup) until T08/T09 land.
+
+## Review follow-ups (2026-11-03)
+
+Found reviewing T01–T05/T16; each is folded into the task named.
+
+| # | Issue | Task |
+|---|-------|------|
+| R1 | `master` defaults to 8.4 but can't deploy it | Decision 6 |
+| R2 | Cross-major guard only runs with `beegfs_update: true`, but the repo file is rewritten (`force: true`) on every run → a later `dnf upgrade` silently crosses majors | T03 follow-up |
+| R3 | Unquoted `beegfs_version: 8.4` is a float → `.split` fails | T03 follow-up |
+| R4 | Spike infers `%post`/`weak-modules` success from `dnf install` exit code, but scriptlet failures don't fail dnf (and `depmod -a` masks it) | T05 run 4 |
+| R5 | "`Provides: beegfs-client` satisfies tools" unproven unless tools actually require `beegfs-client` | T05 run 4 |
+| R6 | Patch ships configs as plain `%config` → upgrades replace role-templated `beegfs-mounts.conf` | T05 patch v3 |
+| R7 | Same NEVR for every kernel build | T05 patch v3 |
+| R8 | RDMA build (question 2) never exercised; `BEEGFS_OPENTK_IBVERBS` likely obsolete | T05 run 4, T06, T12 |
+| R9 | `spike.sh` needs `GITHUB_WORKSPACE`; workflow has no `permissions:` | T05 |
+| R10 | Existing clients: `kmod-beegfs` conflicts with installed `beegfs-client`; stale autobuild `.ko` in `updates/` may shadow kmod | T06 |
+| R11 | Proposed kmod `beegfs_kernel_module` path is wrong after a kABI-compatible kernel update | T06 |
+| R12 | libvirt extra disk must use `provider_raw_config_args`, not `provider_options` | T11 |
 
 ## Order of work
 
 T01 → T05 (spike; may change T06) → T16 → T02–T04 → T06–T10 → T11–T13 →
 T14–T15. Each task is small enough for one commit.
+
+Remaining from 2026-11-03: branch → T03 follow-up → T05 run 4 + patch v3 →
+T06–T10 → T11–T13 → T14–T15.

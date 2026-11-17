@@ -111,3 +111,121 @@ spike.sh (and later by T12's build playbook).
   lost the install/modinfo sections. spike.sh now emits a short
   "key findings" notice first and the report in <4 KB chunks; the noisy
   RDMA grep was replaced by `modinfo depends`.
+
+## Still open (review 2026-11-03)
+
+The run 3 conclusions for (6) and (7) are not proven yet. Run 4 must show:
+
+- **R4 — (6) weak-modules:** grep `install.log` for `scriptlet failed` /
+  `warning: %post` (a failing `%post` doesn't fail `dnf install`, and the
+  trailing `depmod -a` hides `weak-modules`' exit code). Record
+  `rpm -qf /usr/sbin/weak-modules` and a non-empty `weak-updates/beegfs/`
+  listing (or explain why it is empty for the build kernel).
+- **R5 — (7) Provides:** record `rpm -q --requires beegfs-utils [beegfs-tools]`.
+  If neither requires `beegfs-client`, (7) is moot; say so.
+- **R8 — (2) RDMA:** add one build per major with RDMA (`modinfo depends`
+  should list `ib_core`/`rdma_cm`). Note which `buildArgs` 7.4/8.x accept
+  (`BEEGFS_OPENTK_IBVERBS`, `BEEGFS_NO_RDMA`, `OFED_INCLUDE_PATH`) by reading
+  the module's `build/Makefile`.
+
+Patch v3 (`files/beegfs-kmod/0001-client-layout-and-runtime.patch`):
+
+- **R6:** `%config(noreplace) /etc/beegfs` so package upgrades keep the
+  role-templated `beegfs-mounts.conf` and autobuild conf. Spike check:
+  modify `beegfs-mounts.conf`, `dnf reinstall`/upgrade, file is kept.
+- **R7:** `Release: %{beegfs_release}.k<kversion with '-' → '_'>` so builds
+  for different kernels have distinct NEVRs. Spike check: `rpm -qp
+  --qf '%{RELEASE}'` contains the kernel.
+
+Spike fixes:
+
+- **R9:** `spike.sh` uses `${GITHUB_WORKSPACE:-$PWD}` everywhere (repo root
+  when run locally); `kmod-spike.yml` gets `permissions: contents: read`.
+
+**Done when:** run 4 is green on all six jobs, the findings above are
+recorded here, and T05 is ticked in the index.
+
+## Findings — run 4 (39138841299, commit 36bb3a1, patch v2) ✅ all green
+
+Recorded 2026-11-03 from the "key findings" annotations.
+
+- ✅ Build + `dnf install kmod-beegfs beegfs-utils [beegfs-tools]` on all six
+  (8.4 resolves to 8.4.1). No files missing vs `beegfs-client`.
+- **(2) RDMA — answered (R8):** every build has `depends: ib_core,rdma_cm`,
+  so 7.4 and 8.4 build in-kernel RDMA by default with no `buildArgs`.
+  `BEEGFS_OPENTK_IBVERBS` isn't needed; MOFED still needs
+  `build_extra_options` (T12).
+- **(6) weak-modules:** `/usr/sbin/weak-modules` is in the `kmod` package on
+  EL8 (`kmod-25`), EL9 (`kmod-28`) and EL10 (`kmod-31`); not preinstalled in
+  the EL8 container, pulled in by `Requires(post)`. `weak-updates/beegfs/` is
+  empty, as expected with only the build kernel installed. `%post` success
+  still unproven (R4) → run 5.
+- Install pulls in `kernel-core` (+ firmware on EL9/10) through
+  `Requires: kernel >= kversion`; 7.x also pulls `beegfs-common` (from
+  `beegfs-utils`). `beegfs-client` itself isn't in the pulled-in list,
+  so (7) depends on R5 → run 5.
+- Entry points: 7.x `/etc/init.d/beegfs-client` + `beegfs-client{,@}.service`;
+  8.4 adds `/opt/beegfs/sbin/beegfs-client` and `/sbin/mount.beegfs`.
+  `buildEnabled=false` on all.
+- Compiler warnings: 0–2 per build (EL9/EL10); not investigated.
+
+## Findings — run 5 (41698009705, commit ff98727, patch v3) — green, but `%post` fails
+
+Changes: kernel tag in `Release` via `--define beegfs_release` (R7, no spec
+change needed: the spec only sets it when undefined), `%config(noreplace)
+/etc/beegfs` (R6), report scriptlet failures (R4) and what the tools require
+(R5), `GITHUB_WORKSPACE` fallback and `permissions: contents: read` (R9).
+
+- ✅ **R7:** release is e.g. `el9.k5.14.0_687.65.1.el9_8` →
+  `kmod-beegfs-8.4.1-el9.k5.14.0_687.65.1.el9_8.x86_64`.
+- ✅ **R6:** every file under `/etc/beegfs` is flagged `cn` (config, noreplace).
+- ✅ **R5 / (7):** neither `beegfs-utils` nor `beegfs-tools` requires
+  `beegfs-client` (7.4 or 8.4), so (7) is moot. `Provides: beegfs-client`
+  is harmless and stays.
+- ❌ **R4 / (6):** `%post(kmod-beegfs) scriptlet failed, exit status 1` on
+  **all six** jobs; `dnf` still exits 0. The run 3 conclusion was wrong.
+  `%posttrans(kernel-core)` also fails on EL9/EL10 (not EL8).
+  Likely cause (unconfirmed, error text not captured): in the container
+  `uname -r` is the runner's kernel, so the trailing `depmod -a` (which
+  targets the *running* kernel) fails. That is also a real bug on hosts:
+  installing a kmod for a newly installed, not-yet-booted kernel updates
+  the wrong `modules.dep`. Next: capture the scriptlet's stderr and change
+  `%post` to `depmod -a %{kversion}.%{_arch}`.
+- Unchanged from run 4: builds, no missing files, `buildEnabled=false`,
+  `depends: ib_core,rdma_cm`, `weak-updates/` empty. 8.4 also ships
+  `beegfs-client@.service`.
+- `actions/upload-artifact@v5` triggers a Node 20 deprecation warning.
+
+## Findings — run 6 (41710528658, commit 592c252, patch v3 + depmod fix) ✅ done
+
+- ✅ **R4 / (6):** with `%post` running `depmod -a %{kversion}.%{_arch}`, no
+  `kmod-beegfs` scriptlet fails on any of the six jobs. Run 5's failures
+  were the bare `depmod -a` targeting the runner's kernel.
+- Remaining: `%posttrans(kernel-core)` fails on EL9/EL10 because dracut can't
+  write `/boot` in a container ("running in hostonly mode in a container").
+  Container-only, not our package; EL8's kernel-core doesn't run dracut here.
+- Everything else as in run 5 (release tag, `cn` flags, install, RDMA deps).
+
+## Outcome (2026-11-03)
+
+Done. Inputs for T12's build playbook:
+
+- beegfs-kmod commit `614232a` + `files/beegfs-kmod/0001-client-layout-and-runtime.patch`
+  (client_module_*, ships client runtime with `buildEnabled=false`,
+  `%config(noreplace) /etc/beegfs`, `depmod -a <kversion>`).
+- `rpmbuild --rebuild --define "kversion <ver-rel>" --define
+  "beegfs_release <client release>.k<ver-rel with - → _>"`.
+- Build deps: `rpm-build git perl make gcc elfutils-libelf-devel
+  kernel-rpm-macros redhat-rpm-config bzip2 cpio kernel-devel-<kver>`;
+  `kernel-rpm-macros` needs PowerTools (EL8) / CRB (EL9/10).
+- RDMA is built in by default (`depends: ib_core,rdma_cm`); MOFED via
+  `build_extra_options`.
+
+Inputs for T06: the client needs no compiler; neither `beegfs-utils` nor
+`beegfs-tools` requires `beegfs-client`; drop `Type=forking` from the
+override; the IB `buildArgs` task only applies to autobuild.
+
+Note (2026-11-17): `.github/workflows/kmod-spike.yml` and
+`.github/kmod-spike/spike.sh` were removed in T15; Molecule's
+`molecule/shared/build-kmod.yml` covers the build on real VMs. They remain in
+git history (last at 592c252's successors up to T15).

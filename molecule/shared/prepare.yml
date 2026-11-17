@@ -1,0 +1,49 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python3 || test -e /usr/libexec/platform-python || dnf -y install python3
+      changed_when: false
+
+    - name: Update the kernel, so a matching kernel-devel is in the repos
+      dnf:
+        name: kernel
+        state: latest
+      register: kernel_update
+
+    - name: Boot the updated kernel
+      reboot:
+      when: kernel_update is changed
+
+    - name: Gather network facts
+      setup:
+        gather_subset: [network]
+
+    - name: Drop Vagrant's 127.0.1.1 hostname mapping
+      lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        state: absent
+
+    - name: Resolve every node's name to its address, like DNS on a real cluster
+      lineinfile:
+        path: /etc/hosts
+        regexp: '\s{{ item }}$'
+        line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}"
+      loop: "{{ groups['all'] }}"
+
+    - name: Probe services
+      service_facts:
+
+    - name: Stop firewalld; the role doesn't manage firewalls
+      systemd:
+        name: firewalld
+        state: stopped
+        enabled: false
+      when: "'firewalld.service' in ansible_facts.services"
+
+- name: Build kmod-beegfs
+  import_playbook: build-kmod.yml

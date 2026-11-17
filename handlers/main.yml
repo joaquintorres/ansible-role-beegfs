@@ -1,5 +1,6 @@
 ---
 - name: Restart BeeGFS mgmt service
+  listen: Restart BeeGFS services
   systemd:
     name: beegfs-mgmtd
     daemon-reload: true
@@ -8,6 +9,7 @@
   when: beegfs_enable.mgmt | bool
 
 - name: Restart BeeGFS meta service
+  listen: Restart BeeGFS services
   systemd:
     name: beegfs-meta
     daemon-reload: true
@@ -16,6 +18,7 @@
   when: beegfs_enable.meta | bool
 
 - name: Restart BeeGFS storage service
+  listen: Restart BeeGFS services
   systemd:
     name: "beegfs-storage@{{ item.port }}"
     daemon-reload: true
@@ -33,14 +36,13 @@
   when: beegfs_enable.admon | bool
 
 - name: Restart BeeGFS client service
+  listen: Restart BeeGFS services
   systemd:
     name: "{{ item }}"
     daemon-reload: true
     state: restarted
   become: true
-  with_items:
-    - beegfs-helperd
-    - beegfs-client
+  with_items: "{{ (['beegfs-helperd'] if beegfs_major_version is version('8', '<') else []) + ['beegfs-client'] }}"
   when: beegfs_enable.client | bool
   retries: 3
   delay: 3

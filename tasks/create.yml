@@ -14,9 +14,9 @@
         that: installed_majors | difference([beegfs_major_version]) | length == 0
         fail_msg: >-
           Installed BeeGFS major version(s) {{ installed_majors }} differ from
-          beegfs_version {{ beegfs_version }}. Upgrade across major versions
+          beegfs_version {{ beegfs_version }}. Pin beegfs_version to the
+          installed release (e.g. "7.4.6"), or upgrade across major versions
           manually following the upstream upgrade guide.
-  when: beegfs_update | bool
 
 - name: Add BeeGFS repos is beegfs_add_repos is true
   block:
@@ -91,6 +91,7 @@
       with_items:
         - { name: "{{ beegfs_meta_path }}", enable: "{{ beegfs_enable.meta }}" }
         - { name: "{{ beegfs_mgmt_path }}", enable: "{{ beegfs_enable.mgmt }}" }
+        - { name: /var/lib/beegfs/mgmtd.sqlite, enable: "{{ beegfs_enable.mgmt and beegfs_major_version is version('8', '>=') }}" }
     - name: Unload kernel module
       modprobe:
         name: beegfs
@@ -130,8 +131,6 @@
 - include_tasks: tuning.yml
   when: beegfs_enable.tuning | default(false) | bool
 
-- meta: flush_handlers
-
 - include_tasks: client.yml
   vars:
     client_mgmt_host: "{{ client_item.mgmt_host | default(beegfs_mgmt_host) }}"
@@ -147,6 +146,42 @@
     src: connInterfacesFile.j2
     dest: /etc/beegfs/connInterfacesFile
   become: true
+
+- name: Write the connection authentication secret
+  copy:
+    content: "{{ beegfs_conn_auth_secret }}"
+    dest: "{{ beegfs_conn_auth_file }}"
+    mode: "0400"
+  no_log: true
+  become: true
+  when: beegfs_conn_auth_secret | length > 0
+  notify: Restart BeeGFS services
+
+- name: Configure connection authentication in every BeeGFS config file
+  lineinfile:
+    path: "{{ item.0 }}"
+    regexp: "^{{ item.1.key }}\\s*="
+    line: "{{ item.1.key }} = {{ item.1.value }}"
+  loop: "{{ conf_files | product(beegfs_conn_auth_lines | dict2items) | list }}"
+  vars:
+    # Config files of the services enabled on this host, concatenated:
+    # - /etc/beegfs/beegfs-mgmtd.conf (7.x only; 8.x mgmtd is configured in TOML)
+    # - /etc/beegfs/beegfs-meta.conf
+    # - /etc/beegfs/<port>.d/beegfs-storage.conf for each beegfs_oss port
+    # - /etc/beegfs/beegfs-client-<mgmt_host>.conf for each beegfs_client entry
+    #   (mgmt_host defaults to beegfs_mgmt_host), plus beegfs-client.conf, the
+    #   copy that beegfs-ctl reads on the mgmt host, and on 7.x beegfs-helperd.conf
+    # Each disabled service contributes an empty list.
+    conf_files: "{{ (['/etc/beegfs/beegfs-mgmtd.conf'] if beegfs_enable.mgmt | bool and beegfs_major_version is version('8', '<') else [])
+                    + (['/etc/beegfs/beegfs-meta.conf'] if beegfs_enable.meta | bool else [])
+                    + (beegfs_oss | map(attribute='port') | map('string') | map('regex_replace', '^', '/etc/beegfs/') | map('regex_replace', '$', '.d/beegfs-storage.conf') | list if beegfs_enable.oss | bool else [])
+                    + (beegfs_client | map(attribute='mgmt_host', default=beegfs_mgmt_host) | map('regex_replace', '^(.*)$', '/etc/beegfs/beegfs-client-\\1.conf') | list + ['/etc/beegfs/beegfs-client.conf'] + (['/etc/beegfs/beegfs-helperd.conf'] if beegfs_major_version is version('8', '<') else []) if beegfs_enable.client | bool else []) }}"
+  become: true
+  notify: Restart BeeGFS services
+
+# Restart services only once all their config, incl. connInterfacesFile and
+# the auth secret, is in place.
+- meta: flush_handlers
 
 - name: Start and enable BeeGFS server services
   service:
@@ -178,7 +213,7 @@
   become: true
   when: item.enable | bool
   with_items:
-    - { name: beegfs-helperd, enable: "{{ beegfs_enable.client }}" }
+    - { name: beegfs-helperd, enable: "{{ beegfs_enable.client and beegfs_major_version is version('8', '<') }}" }
     - { name: beegfs-client, enable: "{{ beegfs_enable.client }}" }
   retries: 3
   delay: 3
